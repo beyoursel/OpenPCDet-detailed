@@ -27,17 +27,17 @@ class DatasetTemplate(torch_data.Dataset):
         self.point_feature_encoder = PointFeatureEncoder(
             self.dataset_cfg.POINT_FEATURE_ENCODING,
             point_cloud_range=self.point_cloud_range
-        )
+        ) # 设定的点云范围
         self.data_augmentor = DataAugmentor(
             self.root_path, self.dataset_cfg.DATA_AUGMENTOR, self.class_names, logger=self.logger
-        ) if self.training else None
+        ) if self.training else None # 数据增广
         self.data_processor = DataProcessor(
             self.dataset_cfg.DATA_PROCESSOR, point_cloud_range=self.point_cloud_range,
             training=self.training, num_point_features=self.point_feature_encoder.num_point_features
-        )
+        ) # 数据处理
 
-        self.grid_size = self.data_processor.grid_size
-        self.voxel_size = self.data_processor.voxel_size
+        self.grid_size = self.data_processor.grid_size # 栅格尺寸
+        self.voxel_size = self.data_processor.voxel_size # 体素尺寸
         self.total_epochs = 0
         self._merge_all_iters_to_one_epoch = False
 
