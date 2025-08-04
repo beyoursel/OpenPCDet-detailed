@@ -28,15 +28,15 @@ class Object3d(object):
         self.h = float(label[8])
         self.w = float(label[9])
         self.l = float(label[10])
-        self.loc = np.array((float(label[11]), float(label[12]), float(label[13])), dtype=np.float32)
+        self.loc = np.array((float(label[11]), float(label[12]), float(label[13])), dtype=np.float32) # 上底面中心点
         self.dis_to_cam = np.linalg.norm(self.loc)
         self.ry = float(label[14])
         self.score = float(label[15]) if label.__len__() == 16 else -1.0
-        self.level_str = None
+        self.level_str = None # level对应的string
         self.level = self.get_kitti_obj_level()
 
     def get_kitti_obj_level(self):
-        height = float(self.box2d[3]) - float(self.box2d[1]) + 1
+        height = float(self.box2d[3]) - float(self.box2d[1]) + 1 # box2d在图像uv坐标系，计算高度方向上的像素个数
 
         if height >= 40 and self.truncation <= 0.15 and self.occlusion <= 0:
             self.level_str = 'Easy'

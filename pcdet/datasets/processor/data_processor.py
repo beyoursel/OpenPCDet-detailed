@@ -67,14 +67,14 @@ class DataProcessor(object):
         self.training = training
         self.num_point_features = num_point_features
         self.mode = 'train' if training else 'test'
-        self.grid_size = self.voxel_size = None
+        self.grid_size = self.voxel_size = None # 此时均为None，在transform_points_to_voxels中会更新
         self.data_processor_queue = []
 
         self.voxel_generator = None
 
         for cur_cfg in processor_configs:
             cur_processor = getattr(self, cur_cfg.NAME)(config=cur_cfg)
-            self.data_processor_queue.append(cur_processor)
+            self.data_processor_queue.append(cur_processor) # 使用partial将部分参数传入函数接口
 
     def mask_points_and_boxes_outside_range(self, data_dict=None, config=None):
         if data_dict is None:
@@ -132,8 +132,8 @@ class DataProcessor(object):
 
     def transform_points_to_voxels(self, data_dict=None, config=None):
         if data_dict is None:
-            grid_size = (self.point_cloud_range[3:6] - self.point_cloud_range[0:3]) / np.array(config.VOXEL_SIZE)
-            self.grid_size = np.round(grid_size).astype(np.int64)
+            grid_size = (self.point_cloud_range[3:6] - self.point_cloud_range[0:3]) / np.array(config.VOXEL_SIZE) # 根据点云范围和voxel_size计算栅格化后点云分辨率
+            self.grid_size = np.round(grid_size).astype(np.int64) # 四舍五入，然后取整
             self.voxel_size = config.VOXEL_SIZE
             # just bind the config, we will create the VoxelGeneratorWrapper later,
             # to avoid pickling issues in multiprocess spawn

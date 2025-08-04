@@ -23,20 +23,20 @@ def get_calib_from_file(calib_file):
 class Calibration(object):
     def __init__(self, calib_file):
         if not isinstance(calib_file, dict):
-            calib = get_calib_from_file(calib_file)
+            calib = get_calib_from_file(calib_file) # 从标定文件中解析P2 P3 R0 Tr_velo_to_cam
         else:
             calib = calib_file
 
-        self.P2 = calib['P2']  # 3 x 4
+        self.P2 = calib['P2']  # 3 x 4 把“基线”塞进内参后的“立体投影矩阵”，参考坐标系仍是Cam0。
         self.R0 = calib['R0']  # 3 x 3
         self.V2C = calib['Tr_velo2cam']  # 3 x 4
 
-        # Camera intrinsics and extrinsics
+        # Camera intrinsics and extrinsics P2中包含内参和外参中的tranlation
         self.cu = self.P2[0, 2]
         self.cv = self.P2[1, 2]
         self.fu = self.P2[0, 0]
         self.fv = self.P2[1, 1]
-        self.tx = self.P2[0, 3] / (-self.fu)
+        self.tx = self.P2[0, 3] / (-self.fu) # tx为基线位移，负值
         self.ty = self.P2[1, 3] / (-self.fv)
 
     def cart_to_hom(self, pts):
@@ -52,13 +52,15 @@ class Calibration(object):
         :param pts_lidar: (N, 3)
         :return pts_rect: (N, 3)
         """
-        pts_rect_hom = self.cart_to_hom(pts_rect)  # (N, 4)
+        pts_rect_hom = self.cart_to_hom(pts_rect)  # (N, 4) 转齐次坐标
         R0_ext = np.hstack((self.R0, np.zeros((3, 1), dtype=np.float32)))  # (3, 4)
         R0_ext = np.vstack((R0_ext, np.zeros((1, 4), dtype=np.float32)))  # (4, 4)
         R0_ext[3, 3] = 1
         V2C_ext = np.vstack((self.V2C, np.zeros((1, 4), dtype=np.float32)))  # (4, 4)
         V2C_ext[3, 3] = 1
-
+        # 下面将pts_lidar = (inv(T) @ pts_rect_hom.T).T 变换为pts_lidar = pts_rect_hom @ inv(T).T
+        # 再进一步，把 inv(T).T 写成 inv(T.T)（因为 inv(A^T) = inv(A)^T）
+        # 最后得到pts_lidar = pts_rect_hom @ inv(T.T)
         pts_lidar = np.dot(pts_rect_hom, np.linalg.inv(np.dot(R0_ext, V2C_ext).T))
         return pts_lidar[:, 0:3]
 

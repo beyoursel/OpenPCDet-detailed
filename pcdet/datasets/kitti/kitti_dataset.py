@@ -83,7 +83,7 @@ class KittiDataset(DatasetTemplate):
     def get_image_shape(self, idx):
         img_file = self.root_split_path / 'image_2' / ('%s.png' % idx)
         assert img_file.exists()
-        return np.array(io.imread(img_file).shape[:2], dtype=np.int32)
+        return np.array(io.imread(img_file).shape[:2], dtype=np.int32) # skimage.io读取图片为RGB
 
     def get_label(self, idx):
         label_file = self.root_split_path / 'label_2' / ('%s.txt' % idx)
@@ -158,13 +158,13 @@ class KittiDataset(DatasetTemplate):
 
             image_info = {'image_idx': sample_idx, 'image_shape': self.get_image_shape(sample_idx)}
             info['image'] = image_info
-            calib = self.get_calib(sample_idx)
+            calib = self.get_calib(sample_idx) # 解析P2 R0 Tr_velo_to_cam
 
-            P2 = np.concatenate([calib.P2, np.array([[0., 0., 0., 1.]])], axis=0)
-            R0_4x4 = np.zeros([4, 4], dtype=calib.R0.dtype)
+            P2 = np.concatenate([calib.P2, np.array([[0., 0., 0., 1.]])], axis=0) # 3x4 to 4x4齐次矩阵
+            R0_4x4 = np.zeros([4, 4], dtype=calib.R0.dtype) # R0_rect 是 cam0 的“图像校正旋转”，让所有相机在校正后拥有共面的成像平面，方便立体几何计算。
             R0_4x4[3, 3] = 1.
-            R0_4x4[:3, :3] = calib.R0
-            V2C_4x4 = np.concatenate([calib.V2C, np.array([[0., 0., 0., 1.]])], axis=0)
+            R0_4x4[:3, :3] = calib.R0 # R0也转4x4齐次矩阵
+            V2C_4x4 = np.concatenate([calib.V2C, np.array([[0., 0., 0., 1.]])], axis=0) # 3x4 to 4x4齐次矩阵
             calib_info = {'P2': P2, 'R0_rect': R0_4x4, 'Tr_velo_to_cam': V2C_4x4}
 
             info['calib'] = calib_info
@@ -180,15 +180,15 @@ class KittiDataset(DatasetTemplate):
                 annotations['dimensions'] = np.array([[obj.l, obj.h, obj.w] for obj in obj_list])  # lhw(camera) format
                 annotations['location'] = np.concatenate([obj.loc.reshape(1, 3) for obj in obj_list], axis=0)
                 annotations['rotation_y'] = np.array([obj.ry for obj in obj_list])
-                annotations['score'] = np.array([obj.score for obj in obj_list])
+                annotations['score'] = np.array([obj.score for obj in obj_list]) # 相对于相机坐标系x轴的偏航角
                 annotations['difficulty'] = np.array([obj.level for obj in obj_list], np.int32)
 
                 num_objects = len([obj.cls_type for obj in obj_list if obj.cls_type != 'DontCare'])
                 num_gt = len(annotations['name'])
-                index = list(range(num_objects)) + [-1] * (num_gt - num_objects)
+                index = list(range(num_objects)) + [-1] * (num_gt - num_objects) # num_objects为剔除DontCare的目标数量
                 annotations['index'] = np.array(index, dtype=np.int32)
 
-                loc = annotations['location'][:num_objects]
+                loc = annotations['location'][:num_objects] # 根据num_objects取前num_objects的目标，这要求DontCare都排在后
                 dims = annotations['dimensions'][:num_objects]
                 rots = annotations['rotation_y'][:num_objects]
                 loc_lidar = calib.rect_to_lidar(loc)
@@ -218,7 +218,7 @@ class KittiDataset(DatasetTemplate):
 
         sample_id_list = sample_id_list if sample_id_list is not None else self.sample_id_list
         with futures.ThreadPoolExecutor(num_workers) as executor:
-            infos = executor.map(process_single_scene, sample_id_list)
+            infos = executor.map(process_single_scene, sample_id_list) # infos和sample_id_list的长度一致
         return list(infos)
 
     def create_groundtruth_database(self, info_path=None, used_classes=None, split='train'):
@@ -439,7 +439,7 @@ def create_kitti_infos(dataset_cfg, class_names, data_path, save_path, workers=1
 
     print('---------------Start to generate data infos---------------')
 
-    dataset.set_split(train_split)
+    dataset.set_split(train_split) # 获得train set的sample_id_list
     kitti_infos_train = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
     with open(train_filename, 'wb') as f:
         pickle.dump(kitti_infos_train, f)
