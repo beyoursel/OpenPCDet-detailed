@@ -70,7 +70,7 @@ class Calibration(object):
         :return pts_rect: (N, 3)
         """
         pts_lidar_hom = self.cart_to_hom(pts_lidar)
-        pts_rect = np.dot(pts_lidar_hom, np.dot(self.V2C.T, self.R0.T))
+        pts_rect = np.dot(pts_lidar_hom, np.dot(self.V2C.T, self.R0.T)) # pts_rect = ((R0 @ V2C) @ (pts_liar_hom.T)).T
         # pts_rect = reduce(np.dot, (pts_lidar_hom, self.V2C.T, self.R0.T))
         return pts_rect
 
@@ -80,8 +80,9 @@ class Calibration(object):
         :return pts_img: (N, 2)
         """
         pts_rect_hom = self.cart_to_hom(pts_rect)
-        pts_2d_hom = np.dot(pts_rect_hom, self.P2.T)
-        pts_img = (pts_2d_hom[:, 0:2].T / pts_rect_hom[:, 2]).T  # (N, 2)
+        pts_2d_hom = np.dot(pts_rect_hom, self.P2.T) # (P2 @ pts_rect_hom.T).T
+        # pts_rect_hom[:, 2]为(1, N),因此要将pts_2d_hom[:, 0:2]转置为(2,N)
+        pts_img = (pts_2d_hom[:, 0:2].T / pts_rect_hom[:, 2]).T  # (N, 2) 除以深度，得到u,v坐标
         pts_rect_depth = pts_2d_hom[:, 2] - self.P2.T[3, 2]  # depth in rect camera coord
         return pts_img, pts_rect_depth
 

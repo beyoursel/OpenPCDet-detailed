@@ -42,7 +42,7 @@ def rotate_points_along_z(points, angle):
     """
     points, is_numpy = check_numpy_to_torch(points)
     angle, _ = check_numpy_to_torch(angle)
-
+    # angle为弧度
     cosa = torch.cos(angle)
     sina = torch.sin(angle)
     zeros = angle.new_zeros(points.shape[0])
@@ -51,9 +51,9 @@ def rotate_points_along_z(points, angle):
         cosa,  sina, zeros,
         -sina, cosa, zeros,
         zeros, zeros, ones
-    ), dim=1).view(-1, 3, 3).float()
-    points_rot = torch.matmul(points[:, :, 0:3], rot_matrix)
-    points_rot = torch.cat((points_rot, points[:, :, 3:]), dim=-1)
+    ), dim=1).view(-1, 3, 3).float() # after stack: (N, 9)
+    points_rot = torch.matmul(points[:, :, 0:3], rot_matrix) # 自身坐标系内进行坐标变换，采用右乘
+    points_rot = torch.cat((points_rot, points[:, :, 3:]), dim=-1) # 将旋转后的角点和其他特征拼接
     return points_rot.numpy() if is_numpy else points_rot
 
 

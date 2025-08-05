@@ -140,10 +140,10 @@ class KittiDataset(DatasetTemplate):
 
         """
         pts_img, pts_rect_depth = calib.rect_to_img(pts_rect)
-        val_flag_1 = np.logical_and(pts_img[:, 0] >= 0, pts_img[:, 0] < img_shape[1])
-        val_flag_2 = np.logical_and(pts_img[:, 1] >= 0, pts_img[:, 1] < img_shape[0])
+        val_flag_1 = np.logical_and(pts_img[:, 0] >= 0, pts_img[:, 0] < img_shape[1]) # u >= 0 && u < w
+        val_flag_2 = np.logical_and(pts_img[:, 1] >= 0, pts_img[:, 1] < img_shape[0]) # v >=0 && v < h
         val_flag_merge = np.logical_and(val_flag_1, val_flag_2)
-        pts_valid_flag = np.logical_and(val_flag_merge, pts_rect_depth >= 0)
+        pts_valid_flag = np.logical_and(val_flag_merge, pts_rect_depth >= 0) # 深度大于0，相机后面点忽略
 
         return pts_valid_flag
 
@@ -176,7 +176,7 @@ class KittiDataset(DatasetTemplate):
                 annotations['truncated'] = np.array([obj.truncation for obj in obj_list])
                 annotations['occluded'] = np.array([obj.occlusion for obj in obj_list])
                 annotations['alpha'] = np.array([obj.alpha for obj in obj_list])
-                annotations['bbox'] = np.concatenate([obj.box2d.reshape(1, 4) for obj in obj_list], axis=0)
+                annotations['bbox'] = np.concatenate([obj.box2d.reshape(1, 4) for obj in obj_list], axis=0) # 2d box
                 annotations['dimensions'] = np.array([[obj.l, obj.h, obj.w] for obj in obj_list])  # lhw(camera) format
                 annotations['location'] = np.concatenate([obj.loc.reshape(1, 3) for obj in obj_list], axis=0)
                 annotations['rotation_y'] = np.array([obj.ry for obj in obj_list])
@@ -193,25 +193,26 @@ class KittiDataset(DatasetTemplate):
                 rots = annotations['rotation_y'][:num_objects]
                 loc_lidar = calib.rect_to_lidar(loc)
                 l, h, w = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]
-                loc_lidar[:, 2] += h[:, 0] / 2
+                loc_lidar[:, 2] += h[:, 0] / 2 # loc_lidar为bbox的下底面中心点
+                 # 这里的-(np.pi / 2 + rots[..., np.newaxis])]是根据lidar和camera坐标系来定的，根据右手定则，手指弯曲方向为正，lidar和camera均以x轴为准
                 gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, -(np.pi / 2 + rots[..., np.newaxis])], axis=1)
                 annotations['gt_boxes_lidar'] = gt_boxes_lidar
 
                 info['annos'] = annotations
 
                 if count_inside_pts:
-                    points = self.get_lidar(sample_idx)
+                    points = self.get_lidar(sample_idx) # 获得激光点云
                     calib = self.get_calib(sample_idx)
                     pts_rect = calib.lidar_to_rect(points[:, 0:3])
 
                     fov_flag = self.get_fov_flag(pts_rect, info['image']['image_shape'], calib)
-                    pts_fov = points[fov_flag]
-                    corners_lidar = box_utils.boxes_to_corners_3d(gt_boxes_lidar)
-                    num_points_in_gt = -np.ones(num_gt, dtype=np.int32)
+                    pts_fov = points[fov_flag] # 获得在相机fov内的点
+                    corners_lidar = box_utils.boxes_to_corners_3d(gt_boxes_lidar) # gt_boxes_lidar为lidar坐标系
+                    num_points_in_gt = -np.ones(num_gt, dtype=np.int32) # 初始化-1
 
                     for k in range(num_objects):
                         flag = box_utils.in_hull(pts_fov[:, 0:3], corners_lidar[k])
-                        num_points_in_gt[k] = flag.sum()
+                        num_points_in_gt[k] = flag.sum() # 根据输入点云数据和bbox的8个角点，计算bbox内的点云数量
                     annotations['num_points_in_gt'] = num_points_in_gt
 
             return info
@@ -224,14 +225,14 @@ class KittiDataset(DatasetTemplate):
     def create_groundtruth_database(self, info_path=None, used_classes=None, split='train'):
         import torch
 
-        database_save_path = Path(self.root_path) / ('gt_database' if split == 'train' else ('gt_database_%s' % split))
-        db_info_save_path = Path(self.root_path) / ('kitti_dbinfos_%s.pkl' % split)
+        database_save_path = Path(self.root_path) / ('gt_database' if split == 'train' else ('gt_database_%s' % split)) # 存放真值点云数据
+        db_info_save_path = Path(self.root_path) / ('kitti_dbinfos_%s.pkl' % split) # 存放真值数据的信息
 
         database_save_path.mkdir(parents=True, exist_ok=True)
         all_db_infos = {}
 
         with open(info_path, 'rb') as f:
-            infos = pickle.load(f)
+            infos = pickle.load(f) # 加载训练集信息
 
         for k in range(len(infos)):
             print('gt_database sample: %d/%d' % (k + 1, len(infos)))
@@ -241,24 +242,24 @@ class KittiDataset(DatasetTemplate):
             annos = info['annos']
             names = annos['name']
             difficulty = annos['difficulty']
-            bbox = annos['bbox']
+            bbox = annos['bbox'] # 2d bbox in image
             gt_boxes = annos['gt_boxes_lidar']
 
             num_obj = gt_boxes.shape[0]
             point_indices = roiaware_pool3d_utils.points_in_boxes_cpu(
                 torch.from_numpy(points[:, 0:3]), torch.from_numpy(gt_boxes)
-            ).numpy()  # (nboxes, npoints)
+            ).numpy()  # (nboxes, npoints) # 获得每个gt_boxes内的点云
 
             for i in range(num_obj):
                 filename = '%s_%s_%d.bin' % (sample_idx, names[i], i)
                 filepath = database_save_path / filename
-                gt_points = points[point_indices[i] > 0]
+                gt_points = points[point_indices[i] > 0] # point_indices[i]的shape和points的数量一致
 
-                gt_points[:, :3] -= gt_boxes[i, :3]
+                gt_points[:, :3] -= gt_boxes[i, :3] # 相对gt_boxes center的坐标
                 with open(filepath, 'w') as f:
-                    gt_points.tofile(f)
+                    gt_points.tofile(f) # 将gt_boxes内的点云坐标保存
 
-                if (used_classes is None) or names[i] in used_classes:
+                if (used_classes is None) or names[i] in used_classes: # kitti的used_classes设置为none
                     db_path = str(filepath.relative_to(self.root_path))  # gt_database/xxxxx.bin
                     db_info = {'name': names[i], 'path': db_path, 'image_idx': sample_idx, 'gt_idx': i,
                                'box3d_lidar': gt_boxes[i], 'num_points_in_gt': gt_points.shape[0],
@@ -429,7 +430,7 @@ class KittiDataset(DatasetTemplate):
 
 
 def create_kitti_infos(dataset_cfg, class_names, data_path, save_path, workers=1):
-    dataset = KittiDataset(dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path, training=False)
+    dataset = KittiDataset(dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path, training=False) # data_path为数据集的绝对路径
     train_split, val_split = 'train', 'val'
 
     train_filename = save_path / ('kitti_infos_%s.pkl' % train_split)

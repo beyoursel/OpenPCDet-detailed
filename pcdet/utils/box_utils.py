@@ -11,13 +11,13 @@ from . import common_utils
 def in_hull(p, hull):
     """
     :param p: (N, K) test points
-    :param hull: (M, K) M corners of a box
+    :param hull: (M, K) M corners of a box box的角点坐标
     :return (N) bool
     """
     try:
         if not isinstance(hull, Delaunay):
             hull = Delaunay(hull)
-        flag = hull.find_simplex(p) >= 0
+        flag = hull.find_simplex(p) >= 0 # 若>=0，则表示在hull内部
     except scipy.spatial.qhull.QhullError:
         print('Warning: not a hull %s' % str(hull))
         flag = np.zeros(p.shape[0], dtype=np.bool)
@@ -39,16 +39,16 @@ def boxes_to_corners_3d(boxes3d):
 
     Returns:
     """
-    boxes3d, is_numpy = common_utils.check_numpy_to_torch(boxes3d)
+    boxes3d, is_numpy = common_utils.check_numpy_to_torch(boxes3d) # from numpy to tensor
 
     template = boxes3d.new_tensor((
         [1, 1, -1], [1, -1, -1], [-1, -1, -1], [-1, 1, -1],
         [1, 1, 1], [1, -1, 1], [-1, -1, 1], [-1, 1, 1],
     )) / 2
 
-    corners3d = boxes3d[:, None, 3:6].repeat(1, 8, 1) * template[None, :, :]
+    corners3d = boxes3d[:, None, 3:6].repeat(1, 8, 1) * template[None, :, :] # 得到8个corner相对于box center的相对坐标
     corners3d = common_utils.rotate_points_along_z(corners3d.view(-1, 8, 3), boxes3d[:, 6]).view(-1, 8, 3)
-    corners3d += boxes3d[:, None, 0:3]
+    corners3d += boxes3d[:, None, 0:3] # 加上bbox的中心点坐标，得到lidar坐标系下的corner坐标
 
     return corners3d.numpy() if is_numpy else corners3d
 

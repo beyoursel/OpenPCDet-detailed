@@ -12,7 +12,7 @@
 |Alpha|	1|	弧度	|目标观测角：[−pi, pi]|
 |Bbox|	4|	像素	|目标2D检测框位置：左上顶点和右下顶点的像素坐标|
 |Dimensions|	3	|米|	3D目标尺寸：高、宽、长|
-|Location|	3|	米	|目标3D框上底面中心坐标：(x, y,z)，相机坐标系|
+|Location|	3|	米	|目标3D框下底面中心坐标：(x, y,z)，相机坐标系|
 |Rotation_y| 1	|弧度|	目标朝向角：[−pi, pi]|
 
 annotations['dimensions'] = np.array([[obj.l, obj.h, obj.w] for obj in obj_list])  # lhw(camera) format
@@ -24,3 +24,5 @@ annotations['location'] = np.concatenate([obj.loc.reshape(1, 3) for obj in obj_l
 • Camera: x = right, y = down, z = forward
 • Velodyne: x = forward, y = left, z = up
 • GPS/IMU: x = forward, y = left, z = up
+
+## numpy的广播机制
