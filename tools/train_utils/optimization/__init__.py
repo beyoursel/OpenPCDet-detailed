@@ -23,7 +23,7 @@ def build_optimizer(model, optim_cfg):
         def num_children(m: nn.Module) -> int:
             return len(children(m))
 
-        flatten_model = lambda m: sum(map(flatten_model, m.children()), []) if num_children(m) else [m]
+        flatten_model = lambda m: sum(map(flatten_model, m.children()), []) if num_children(m) else [m] # 匿名递归函数
         get_layer_groups = lambda m: [nn.Sequential(*flatten_model(m))]
         betas = optim_cfg.get('BETAS', (0.9, 0.99))
         betas = tuple(betas)
@@ -51,7 +51,7 @@ def build_scheduler(optimizer, total_iters_each_epoch, total_epochs, last_epoch,
     if optim_cfg.OPTIMIZER == 'adam_onecycle':
         lr_scheduler = OneCycle(
             optimizer, total_steps, optim_cfg.LR, list(optim_cfg.MOMS), optim_cfg.DIV_FACTOR, optim_cfg.PCT_START
-        )
+        ) # 二段式余弦退火
     elif optim_cfg.OPTIMIZER == 'adam_cosineanneal':
         lr_scheduler = CosineAnnealing(
             optimizer, total_steps, total_epochs, optim_cfg.LR, list(optim_cfg.MOMS), optim_cfg.PCT_START, optim_cfg.WARMUP_ITER

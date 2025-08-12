@@ -18,12 +18,12 @@ def split_bn_bias(layer_groups):
     split_groups = []
     for l in layer_groups:
         l1, l2 = [], []
-        for c in l.children():
+        for c in l.children(): # 
             if isinstance(c, bn_types):
-                l2.append(c)
+                l2.append(c) # batchnorm layers
             else:
                 l1.append(c)
-        split_groups += [nn.Sequential(*l1), nn.Sequential(*l2)]
+        split_groups += [nn.Sequential(*l1), nn.Sequential(*l2)] # l1: weights l2: bn/bias
     return split_groups
 
 
@@ -93,7 +93,7 @@ def listify(p=None, q=None):
 
 def trainable_params(m: nn.Module):
     "Return list of trainable params in `m`."
-    res = filter(lambda p: p.requires_grad, m.parameters())
+    res = filter(lambda p: p.requires_grad, m.parameters()) # 返回需要计算梯度的参数列表迭代器
     return res
 
 
@@ -118,7 +118,7 @@ class OptimWrapper():
         split_groups = split_bn_bias(layer_groups)
         opt = opt_func([{'params': trainable_params(l), 'lr': 0} for l in split_groups])
         opt = cls(opt, **kwargs)
-        opt.lr, opt.opt_func = listify(lr, layer_groups), opt_func
+        opt.lr, opt.opt_func = listify(lr, layer_groups), opt_func # 这里调用了self.lr(val)
         return opt
 
     def new(self, layer_groups):
@@ -172,7 +172,7 @@ class OptimWrapper():
 
     @lr.setter
     def lr(self, val: float) -> None:
-        self._lr = self.set_val('lr', listify(val, self._lr))
+        self._lr = self.set_val('lr', listify(val, self._lr)) # 外部调用opt.lr = val赋值时实际上调用的该函数
 
     @property
     def mom(self) -> float:
@@ -223,14 +223,14 @@ class OptimWrapper():
     def set_val(self, key: str, val, bn_groups: bool = True):
         "Set `val` inside the optimizer dictionary at `key`."
         if is_tuple(val): val = [(v1, v2) for v1, v2 in zip(*val)]
-        for v, pg1, pg2 in zip(val, self.opt.param_groups[::2], self.opt.param_groups[1::2]):
-            pg1[key] = v
+        for v, pg1, pg2 in zip(val, self.opt.param_groups[::2], self.opt.param_groups[1::2]): # [::2]取偶数索引、[1::2]取奇数索引
+            pg1[key] = v # 注意这里是python索引切片得到的，引用原地址，修改这里同时修改了self.opt
             if bn_groups: pg2[key] = v
         return val
 
     def read_val(self, key: str):
         "Read a hyperparameter `key` in the optimizer dictionary."
-        val = [pg[key] for pg in self.opt.param_groups[::2]]
+        val = [pg[key] for pg in self.opt.param_groups[::2]] # 每个 偶数索引 对应一个层组
         if is_tuple(val[0]): val = [o[0] for o in val], [o[1] for o in val]
         return val
 

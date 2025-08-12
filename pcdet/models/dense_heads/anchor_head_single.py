@@ -12,16 +12,16 @@ class AnchorHeadSingle(AnchorHeadTemplate):
             predict_boxes_when_training=predict_boxes_when_training
         )
 
-        self.num_anchors_per_location = sum(self.num_anchors_per_location)
+        self.num_anchors_per_location = sum(self.num_anchors_per_location) # 3 classes and each class has 2 directions
 
         self.conv_cls = nn.Conv2d(
             input_channels, self.num_anchors_per_location * self.num_class,
             kernel_size=1
-        )
+        ) # 每个anchor预测num_class个类别概率
         self.conv_box = nn.Conv2d(
             input_channels, self.num_anchors_per_location * self.box_coder.code_size,
             kernel_size=1
-        )
+        ) # 1x1 conv，only change feature channels
 
         if self.model_cfg.get('USE_DIRECTION_CLASSIFIER', None) is not None:
             self.conv_dir_cls = nn.Conv2d(

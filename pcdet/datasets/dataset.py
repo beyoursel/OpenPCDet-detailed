@@ -34,7 +34,7 @@ class DatasetTemplate(torch_data.Dataset):
         self.data_processor = DataProcessor(
             self.dataset_cfg.DATA_PROCESSOR, point_cloud_range=self.point_cloud_range,
             training=self.training, num_point_features=self.point_feature_encoder.num_point_features
-        ) # 数据处理
+        ) # 数据处理，mask_points_boxes outside of range、shuffle、transform to voxel
 
         self.grid_size = self.data_processor.grid_size # 栅格尺寸
         self.voxel_size = self.data_processor.voxel_size # 体素尺寸

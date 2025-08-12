@@ -25,10 +25,10 @@ class LRSchedulerStep(object):
             if isinstance(lambda_func, str):
                 lambda_func = eval(lambda_func)
             if i < len(lr_phases) - 1:
-                self.lr_phases.append((int(start * total_step), int(lr_phases[i + 1][0] * total_step), lambda_func))
+                self.lr_phases.append((int(start * total_step), int(lr_phases[i + 1][0] * total_step), lambda_func)) # 第一阶段
             else:
-                self.lr_phases.append((int(start * total_step), total_step, lambda_func))
-        assert self.lr_phases[0][0] == 0
+                self.lr_phases.append((int(start * total_step), total_step, lambda_func)) # 第二阶段
+        assert self.lr_phases[0][0] == 0 # 从第一个iter开始
         self.mom_phases = []
         for i, (start, lambda_func) in enumerate(mom_phases):
             if len(self.mom_phases) != 0:
@@ -44,7 +44,7 @@ class LRSchedulerStep(object):
     def step(self, step, epoch=None):
         for start, end, func in self.lr_phases:
             if step >= start:
-                self.optimizer.lr = func((step - start) / (end - start))
+                self.optimizer.lr = func((step - start) / (end - start)) # (step - start) / (end - start) 计算当前step在当前phase的比例，取之范围为0~1
         for start, end, func in self.mom_phases:
             if step >= start:
                 self.optimizer.mom = func((step - start) / (end - start))
@@ -66,14 +66,14 @@ class OneCycle(LRSchedulerStep):
         self.pct_start = pct_start
         a1 = int(total_step * self.pct_start)
         a2 = total_step - a1
-        low_lr = self.lr_max / self.div_factor
+        low_lr = self.lr_max / self.div_factor # div_factor为下降的倍数
         lr_phases = ((0, partial(annealing_cos, low_lr, self.lr_max)),
                      (self.pct_start,
-                      partial(annealing_cos, self.lr_max, low_lr / 1e4)))
+                      partial(annealing_cos, self.lr_max, low_lr / 1e4))) # stage1: low_lr to self.lr_max; stage2: self.lr_max to low_lr/1e-4
         mom_phases = ((0, partial(annealing_cos, *self.moms)),
                       (self.pct_start, partial(annealing_cos,
-                                               *self.moms[::-1])))
-        fai_optimizer.lr, fai_optimizer.mom = low_lr, self.moms[0]
+                                               *self.moms[::-1]))) # stage1: self.moms[0] to self.moms[1]; stage2: self.moms[1] to self.moms[0]
+        fai_optimizer.lr, fai_optimizer.mom = low_lr, self.moms[0] # 实际调用了fai_optimizer的setter函数，可以debug进去调试
         super().__init__(fai_optimizer, total_step, lr_phases, mom_phases)
 
 

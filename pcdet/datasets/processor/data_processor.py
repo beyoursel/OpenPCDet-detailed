@@ -82,13 +82,13 @@ class DataProcessor(object):
 
         if data_dict.get('points', None) is not None:
             mask = common_utils.mask_points_by_range(data_dict['points'], self.point_cloud_range)
-            data_dict['points'] = data_dict['points'][mask]
+            data_dict['points'] = data_dict['points'][mask] # 仅保留在point_cloud_range之内的点云数据
 
         if data_dict.get('gt_boxes', None) is not None and config.REMOVE_OUTSIDE_BOXES and self.training:
             mask = box_utils.mask_boxes_outside_range_numpy(
                 data_dict['gt_boxes'], self.point_cloud_range, min_num_corners=config.get('min_num_corners', 1), 
                 use_center_to_filter=config.get('USE_CENTER_TO_FILTER', True)
-            )
+            ) # 超过point_cloud_range的gt_box被忽略，采用基于box_center和box_corner两种判定方式
             data_dict['gt_boxes'] = data_dict['gt_boxes'][mask]
         return data_dict
 
@@ -98,7 +98,7 @@ class DataProcessor(object):
 
         if config.SHUFFLE_ENABLED[self.mode]:
             points = data_dict['points']
-            shuffle_idx = np.random.permutation(points.shape[0])
+            shuffle_idx = np.random.permutation(points.shape[0]) # 生成从0到points.shape[0]-1的点索引，顺序随机打乱
             points = points[shuffle_idx]
             data_dict['points'] = points
 

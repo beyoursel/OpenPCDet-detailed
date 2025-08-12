@@ -68,8 +68,8 @@ class BaseBEVBackbone(nn.Module):
                         nn.ReLU()
                     ))
 
-        c_in = sum(num_upsample_filters)
-        if len(upsample_strides) > num_levels:
+        c_in = sum(num_upsample_filters) # 各上采样层输出通道数之和
+        if len(upsample_strides) > num_levels: # 上采样层数多于下采样层数
             self.deblocks.append(nn.Sequential(
                 nn.ConvTranspose2d(c_in, c_in, upsample_strides[-1], stride=upsample_strides[-1], bias=False),
                 nn.BatchNorm2d(c_in, eps=1e-3, momentum=0.01),

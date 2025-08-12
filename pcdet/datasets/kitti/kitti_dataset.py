@@ -22,12 +22,12 @@ class KittiDataset(DatasetTemplate):
         """
         super().__init__(
             dataset_cfg=dataset_cfg, class_names=class_names, training=training, root_path=root_path, logger=logger
-        )
+        ) # 初始化点云数据增广、数据预处理相关方法
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
         self.root_split_path = self.root_path / ('training' if self.split != 'test' else 'testing')
 
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
-        self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
+        self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None # 数据集样本id的list
 
         self.kitti_infos = []
         self.include_kitti_data(self.mode) # self.mode为属性函数，在DatasetTemplate中定义的
@@ -42,7 +42,7 @@ class KittiDataset(DatasetTemplate):
             if not info_path.exists():
                 continue
             with open(info_path, 'rb') as f:
-                infos = pickle.load(f)
+                infos = pickle.load(f) # 每个info包含对应的pointcloud、image、calib、annotations等信息
                 kitti_infos.extend(infos)
 
         self.kitti_infos.extend(kitti_infos)

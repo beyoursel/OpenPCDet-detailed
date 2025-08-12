@@ -37,7 +37,7 @@ def load_data_to_gpu(batch_dict):
 
 
 def model_fn_decorator():
-    ModelReturn = namedtuple('ModelReturn', ['loss', 'tb_dict', 'disp_dict'])
+    ModelReturn = namedtuple('ModelReturn', ['loss', 'tb_dict', 'disp_dict']) # namedtuple 创建一个轻量级的类，可以用属性名访问元素
 
     def model_func(model, batch_dict):
         load_data_to_gpu(batch_dict)
@@ -47,7 +47,7 @@ def model_fn_decorator():
         if hasattr(model, 'update_global_step'):
             model.update_global_step()
         else:
-            model.module.update_global_step()
+            model.module.update_global_step() # DataParallel包装的，真正的模型在model.module中
 
         return ModelReturn(loss, tb_dict, disp_dict)
 

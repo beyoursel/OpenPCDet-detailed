@@ -60,7 +60,7 @@ def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None,
         root_path=root_path,
         training=training,
         logger=logger,
-    )
+    ) # 加载dataset
 
     if merge_all_iters_to_one_epoch:
         assert hasattr(dataset, 'merge_all_iters_to_one_epoch')

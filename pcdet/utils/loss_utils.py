@@ -39,7 +39,7 @@ class SigmoidFocalClassificationLoss(nn.Module):
                 Sigmoid cross entropy loss without reduction
         """
         loss = torch.clamp(input, min=0) - input * target + \
-               torch.log1p(torch.exp(-torch.abs(input)))
+               torch.log1p(torch.exp(-torch.abs(input))) # equal to torch.log(1+torch.exp(-torch.abs(input)))
         return loss
 
     def forward(self, input: torch.Tensor, target: torch.Tensor, weights: torch.Tensor):
@@ -125,7 +125,7 @@ class WeightedSmoothL1Loss(nn.Module):
         diff = input - target
         # code-wise weighting
         if self.code_weights is not None:
-            diff = diff * self.code_weights.view(1, 1, -1)
+            diff = diff * self.code_weights.view(1, 1, -1) # 对待回归的各个box参数加权，默认都为1.0
 
         loss = self.smooth_l1_loss(diff, self.beta)
 
@@ -202,8 +202,8 @@ class WeightedCrossEntropyLoss(nn.Module):
             loss: (B, #anchors) float tensor.
                 Weighted cross entropy loss without reduction
         """
-        input = input.permute(0, 2, 1)
-        target = target.argmax(dim=-1)
+        input = input.permute(0, 2, 1) # from (B, C, N) to (B, C)
+        target = target.argmax(dim=-1) # one-hot -> class index
         loss = F.cross_entropy(input, target, reduction='none') * weights
         return loss
 

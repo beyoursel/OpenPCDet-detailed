@@ -25,11 +25,11 @@ class AnchorGenerator(object):
             if align_center:
                 x_stride = (self.anchor_range[3] - self.anchor_range[0]) / grid_size[0]
                 y_stride = (self.anchor_range[4] - self.anchor_range[1]) / grid_size[1]
-                x_offset, y_offset = x_stride / 2, y_stride / 2
+                x_offset, y_offset = x_stride / 2, y_stride / 2 # 以格子中心的方式
             else:
                 x_stride = (self.anchor_range[3] - self.anchor_range[0]) / (grid_size[0] - 1)
                 y_stride = (self.anchor_range[4] - self.anchor_range[1]) / (grid_size[1] - 1)
-                x_offset, y_offset = 0, 0
+                x_offset, y_offset = 0, 0 # 覆盖点云边界范围
 
             x_shifts = torch.arange(
                 self.anchor_range[0] + x_offset, self.anchor_range[3] + 1e-5, step=x_stride, dtype=torch.float32,
@@ -37,7 +37,7 @@ class AnchorGenerator(object):
             y_shifts = torch.arange(
                 self.anchor_range[1] + y_offset, self.anchor_range[4] + 1e-5, step=y_stride, dtype=torch.float32,
             ).cuda()
-            z_shifts = x_shifts.new_tensor(anchor_height)
+            z_shifts = x_shifts.new_tensor(anchor_height) # lidar系下anchor下底面
 
             num_anchor_size, num_anchor_rotation = anchor_size.__len__(), anchor_rotation.__len__()
             anchor_rotation = x_shifts.new_tensor(anchor_rotation)
@@ -56,7 +56,7 @@ class AnchorGenerator(object):
             anchors = anchors.permute(2, 1, 0, 3, 4, 5).contiguous()
             #anchors = anchors.view(-1, anchors.shape[-1])
             anchors[..., 2] += anchors[..., 5] / 2  # shift to box centers
-            all_anchors.append(anchors)
+            all_anchors.append(anchors) # [1, grid_size_x, grid_size_y, num_anchor_size, num_anchor_rotation, 7]
         return all_anchors, num_anchors_per_location
 
 

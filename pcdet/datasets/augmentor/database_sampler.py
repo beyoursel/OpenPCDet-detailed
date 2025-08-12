@@ -36,12 +36,12 @@ class DataBaseSampler(object):
                 sampler_cfg.DB_DATA_PATH[0] = sampler_cfg.BACKUP_DB_INFO['DB_DATA_PATH']
                 db_info_path = self.root_path.resolve() / sampler_cfg.DB_INFO_PATH[0]
                 sampler_cfg.NUM_POINT_FEATURES = sampler_cfg.BACKUP_DB_INFO['NUM_POINT_FEATURES']
-
+            # gt database中每个class对应一个list，每个list下存放所有的gt sample
             with open(str(db_info_path), 'rb') as f:
                 infos = pickle.load(f)
                 [self.db_infos[cur_class].extend(infos[cur_class]) for cur_class in class_names]
 
-        for func_name, val in sampler_cfg.PREPARE.items():
+        for func_name, val in sampler_cfg.PREPARE.items(): # filter by min_poits && filter_by_difficulty 
             self.db_infos = getattr(self, func_name)(self.db_infos, val)
 
         self.gt_database_data_key = self.load_db_to_shared_memory() if self.use_shared_memory else None
@@ -108,7 +108,7 @@ class DataBaseSampler(object):
             ]
             if self.logger is not None:
                 self.logger.info('Database filter by difficulty %s: %d => %d' % (key, pre_len, len(new_db_infos[key])))
-        return new_db_infos
+        return new_db_infos # 过滤-1这个难度等级的gt sample
 
     def filter_by_min_points(self, db_infos, min_gt_points_list):
         for name_num in min_gt_points_list:
@@ -124,7 +124,7 @@ class DataBaseSampler(object):
                     self.logger.info('Database filter by min points %s: %d => %d' %
                                      (name, len(db_infos[name]), len(filtered_infos)))
                 db_infos[name] = filtered_infos
-
+        # gt sample若点云数量过少，则被忽略
         return db_infos
 
     def sample_with_fixed_number(self, class_name, sample_group):

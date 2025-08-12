@@ -31,7 +31,7 @@ def parse_config():
     parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm'], default='none')
     parser.add_argument('--tcp_port', type=int, default=18888, help='tcp port for distrbuted training')
     parser.add_argument('--sync_bn', action='store_true', default=False, help='whether to use sync bn')
-    parser.add_argument('--fix_random_seed', action='store_true', default=False, help='')
+    parser.add_argument('--fix_random_seed', action='store_true', default=True, help='')
     parser.add_argument('--ckpt_save_interval', type=int, default=1, help='number of training epochs')
     parser.add_argument('--local_rank', type=int, default=None, help='local rank for distributed training')
     parser.add_argument('--max_ckpt_save_num', type=int, default=30, help='max number of saved checkpoint')
@@ -54,10 +54,10 @@ def parse_config():
     args = parser.parse_args()
 
     cfg_from_yaml_file(args.cfg_file, cfg)
-    cfg.TAG = Path(args.cfg_file).stem
-    cfg.EXP_GROUP_PATH = '/'.join(args.cfg_file.split('/')[1:-1])  # remove 'cfgs' and 'xxxx.yaml'
+    cfg.TAG = Path(args.cfg_file).stem # 使用Path(xxx)直接拿文件名
+    cfg.EXP_GROUP_PATH = '/'.join(args.cfg_file.split('/')[-2:-1])  # remove 'cfgs' and 'xxxx.yaml'
     
-    args.use_amp = args.use_amp or cfg.OPTIMIZATION.get('USE_AMP', False)
+    args.use_amp = args.use_amp or cfg.OPTIMIZATION.get('USE_AMP', False) # 默认不使用混合精度训练
 
     if args.set_cfgs is not None:
         cfg_from_list(args.set_cfgs, cfg)
@@ -68,7 +68,7 @@ def parse_config():
 def main():
     args, cfg = parse_config()
     if args.launcher == 'none':
-        dist_train = False
+        dist_train = False # 不使用分布式训练
         total_gpus = 1
     else:
         if args.local_rank is None:
@@ -80,14 +80,14 @@ def main():
         dist_train = True
 
     if args.batch_size is None:
-        args.batch_size = cfg.OPTIMIZATION.BATCH_SIZE_PER_GPU
+        args.batch_size = cfg.OPTIMIZATION.BATCH_SIZE_PER_GPU # 不设置batch_size，则默认使用模型配置中优化器的默认batch_size
     else:
         assert args.batch_size % total_gpus == 0, 'Batch size should match the number of gpus'
         args.batch_size = args.batch_size // total_gpus
 
     args.epochs = cfg.OPTIMIZATION.NUM_EPOCHS if args.epochs is None else args.epochs
 
-    if args.fix_random_seed:
+    if args.fix_random_seed: # 固定随机种子，保证结果是可复现的
         common_utils.set_random_seed(666 + cfg.LOCAL_RANK)
 
     output_dir = cfg.ROOT_DIR / 'output' / cfg.EXP_GROUP_PATH / cfg.TAG / args.extra_tag
@@ -96,7 +96,7 @@ def main():
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     log_file = output_dir / ('train_%s.log' % datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
-    logger = common_utils.create_logger(log_file, rank=cfg.LOCAL_RANK)
+    logger = common_utils.create_logger(log_file, rank=cfg.LOCAL_RANK) # 使用logging库记录日志
 
     # log to file
     logger.info('**********************Start logging**********************')
@@ -132,7 +132,7 @@ def main():
     model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=train_set)
     if args.sync_bn:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-    model.cuda()
+    model.cuda() # 将模型放在gpu上
 
     optimizer = build_optimizer(model, cfg.OPTIMIZATION)
 

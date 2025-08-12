@@ -62,7 +62,7 @@ class PillarVFE(VFETemplate):
 
         self.num_filters = self.model_cfg.NUM_FILTERS
         assert len(self.num_filters) > 0
-        num_filters = [num_point_features] + list(self.num_filters)
+        num_filters = [num_point_features] + list(self.num_filters) # 输入输出的特征通道数
 
         pfn_layers = []
         for i in range(len(num_filters) - 1):
@@ -76,7 +76,7 @@ class PillarVFE(VFETemplate):
         self.voxel_x = voxel_size[0]
         self.voxel_y = voxel_size[1]
         self.voxel_z = voxel_size[2]
-        self.x_offset = self.voxel_x / 2 + point_cloud_range[0]
+        self.x_offset = self.voxel_x / 2 + point_cloud_range[0] # 用于计算体素的在world下的坐标
         self.y_offset = self.voxel_y / 2 + point_cloud_range[1]
         self.z_offset = self.voxel_z / 2 + point_cloud_range[2]
 

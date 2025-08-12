@@ -18,19 +18,19 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
     ckpt_save_cnt = 1
     start_it = accumulated_iter % total_it_each_epoch
 
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp, init_scale=optim_cfg.get('LOSS_SCALE_FP16', 2.0**16))
+    scaler = torch.cuda.amp.GradScaler(enabled=use_amp, init_scale=optim_cfg.get('LOSS_SCALE_FP16', 2.0**16)) # 默认关闭amp
     
     if rank == 0:
         pbar = tqdm.tqdm(total=total_it_each_epoch, leave=leave_pbar, desc='train', dynamic_ncols=True)
         data_time = common_utils.AverageMeter()
         batch_time = common_utils.AverageMeter()
         forward_time = common_utils.AverageMeter()
-        losses_m = common_utils.AverageMeter()
+        losses_m = common_utils.AverageMeter() # 记录时间
 
     end = time.time()
     for cur_it in range(start_it, total_it_each_epoch):
         try:
-            batch = next(dataloader_iter)
+            batch = next(dataloader_iter) # 获得batch，经过dataset数据处理，collate_fn打包成为batch
         except StopIteration:
             dataloader_iter = iter(train_loader)
             batch = next(dataloader_iter)
@@ -53,9 +53,9 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
         optimizer.zero_grad()
 
         with torch.cuda.amp.autocast(enabled=use_amp):
-            loss, tb_dict, disp_dict = model_func(model, batch)
+            loss, tb_dict, disp_dict = model_func(model, batch) # 调用了外部定义的model_func，计算loss.mean()
 
-        scaler.scale(loss).backward()
+        scaler.scale(loss).backward() # 反向梯度传播
         scaler.unscale_(optimizer)
         clip_grad_norm_(model.parameters(), optim_cfg.GRAD_NORM_CLIP)
         scaler.step(optimizer)
@@ -76,7 +76,7 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
         if rank == 0:
             batch_size = batch.get('batch_size', None)
             
-            data_time.update(avg_data_time)
+            data_time.update(avg_data_time) # 更新时间
             forward_time.update(avg_forward_time)
             batch_time.update(avg_batch_time)
             losses_m.update(loss.item() , batch_size)
@@ -172,10 +172,10 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
 
             # train one epoch
             if lr_warmup_scheduler is not None and cur_epoch < optim_cfg.WARMUP_EPOCH:
-                cur_scheduler = lr_warmup_scheduler
+                cur_scheduler = lr_warmup_scheduler # warmup默认None
             else:
                 cur_scheduler = lr_scheduler
-            
+            # 训练时关闭数据增强，一般最后几个epoch
             augment_disable_flag = disable_augmentation_hook(hook_config, dataloader_iter, total_epochs, cur_epoch, cfg, augment_disable_flag, logger)
             accumulated_iter = train_one_epoch(
                 model, optimizer, train_loader, model_func,

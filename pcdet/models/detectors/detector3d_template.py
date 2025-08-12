@@ -18,12 +18,12 @@ class Detector3DTemplate(nn.Module):
         self.num_class = num_class
         self.dataset = dataset
         self.class_names = dataset.class_names
-        self.register_buffer('global_step', torch.LongTensor(1).zero_())
+        self.register_buffer('global_step', torch.LongTensor(1).zero_()) # 注册buffer，作为nn.Module的一个属性，不参与反向梯度传播，类似Batchnorm的“running mean”
 
         self.module_topology = [
             'vfe', 'backbone_3d', 'map_to_bev_module', 'pfe',
             'backbone_2d', 'dense_head',  'point_head', 'roi_head'
-        ]
+        ] # 模型组成部分
 
     @property
     def mode(self):
@@ -46,7 +46,7 @@ class Detector3DTemplate(nn.Module):
             module, model_info_dict = getattr(self, 'build_%s' % module_name)(
                 model_info_dict=model_info_dict
             )
-            self.add_module(module_name, module)
+            self.add_module(module_name, module) # Adds a child module to the current module, 后续可以根据module_name进行调用
         return model_info_dict['module_list']
 
     def build_vfe(self, model_info_dict):
@@ -61,7 +61,7 @@ class Detector3DTemplate(nn.Module):
             grid_size=model_info_dict['grid_size'],
             depth_downsample_factor=model_info_dict['depth_downsample_factor']
         )
-        model_info_dict['num_point_features'] = vfe_module.get_output_feature_dim()
+        model_info_dict['num_point_features'] = vfe_module.get_output_feature_dim() # 更新上一个模块输出的特征数量
         model_info_dict['module_list'].append(vfe_module)
         return vfe_module, model_info_dict
 

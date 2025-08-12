@@ -14,25 +14,25 @@ class AnchorHeadTemplate(nn.Module):
         self.model_cfg = model_cfg
         self.num_class = num_class
         self.class_names = class_names
-        self.predict_boxes_when_training = predict_boxes_when_training
-        self.use_multihead = self.model_cfg.get('USE_MULTIHEAD', False)
+        self.predict_boxes_when_training = predict_boxes_when_training # 训练时预测box
+        self.use_multihead = self.model_cfg.get('USE_MULTIHEAD', False) # 多头
 
         anchor_target_cfg = self.model_cfg.TARGET_ASSIGNER_CONFIG
         self.box_coder = getattr(box_coder_utils, anchor_target_cfg.BOX_CODER)(
             num_dir_bins=anchor_target_cfg.get('NUM_DIR_BINS', 6),
             **anchor_target_cfg.get('BOX_CODER_CONFIG', {})
-        )
+        ) # box编码
 
         anchor_generator_cfg = self.model_cfg.ANCHOR_GENERATOR_CONFIG
         anchors, self.num_anchors_per_location = self.generate_anchors(
             anchor_generator_cfg, grid_size=grid_size, point_cloud_range=point_cloud_range,
             anchor_ndim=self.box_coder.code_size
-        )
+        ) # 生成anchor, self.num_anchors_per_location为feature map每个位置处的anchor数量
         self.anchors = [x.cuda() for x in anchors]
-        self.target_assigner = self.get_target_assigner(anchor_target_cfg)
+        self.target_assigner = self.get_target_assigner(anchor_target_cfg) # 正负样本分配
 
         self.forward_ret_dict = {}
-        self.build_losses(self.model_cfg.LOSS_CONFIG)
+        self.build_losses(self.model_cfg.LOSS_CONFIG) # 构建损失函数
 
     @staticmethod
     def generate_anchors(anchor_generator_cfg, grid_size, point_cloud_range, anchor_ndim=7):
@@ -41,7 +41,7 @@ class AnchorHeadTemplate(nn.Module):
             anchor_generator_config=anchor_generator_cfg
         )
         feature_map_size = [grid_size[:2] // config['feature_map_stride'] for config in anchor_generator_cfg]
-        anchors_list, num_anchors_per_location_list = anchor_generator.generate_anchors(feature_map_size)
+        anchors_list, num_anchors_per_location_list = anchor_generator.generate_anchors(feature_map_size) # 根据grid_size、anchor_size、anchor_rotation等生成anchors
 
         if anchor_ndim != 7:
             for idx, anchors in enumerate(anchors_list):
