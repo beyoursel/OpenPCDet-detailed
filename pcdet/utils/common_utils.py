@@ -19,6 +19,9 @@ def check_numpy_to_torch(x):
 
 
 def limit_period(val, offset=0.5, period=np.pi):
+    """
+    把任意实数（或数组）“折叠”到长度为 period 的周期区间内，偏移量 offset 决定区间的“中心”位置。
+    """
     val, is_numpy = check_numpy_to_torch(val)
     ans = val - torch.floor(val / period + offset) * period
     return ans.numpy() if is_numpy else ans
@@ -51,8 +54,8 @@ def rotate_points_along_z(points, angle):
         cosa,  sina, zeros,
         -sina, cosa, zeros,
         zeros, zeros, ones
-    ), dim=1).view(-1, 3, 3).float() # after stack: (N, 9)
-    points_rot = torch.matmul(points[:, :, 0:3], rot_matrix) # 自身坐标系内进行坐标变换，采用右乘
+    ), dim=1).view(-1, 3, 3).float() # after stack: (N, 9) 构建旋转矩阵，根据右手定则，变换前后向量的模不变，根据极坐标计算
+    points_rot = torch.matmul(points[:, :, 0:3], rot_matrix) # 点向量为行向量，则右乘旋转矩阵
     points_rot = torch.cat((points_rot, points[:, :, 3:]), dim=-1) # 将旋转后的角点和其他特征拼接
     return points_rot.numpy() if is_numpy else points_rot
 
@@ -71,11 +74,11 @@ def angle2matrix(angle):
         [cosa, -sina, 0],
         [sina, cosa,  0],
         [   0,    0,  1]
-    ])
+    ]) # 这里为标准的数学定义，对点列向量进行左乘运算
     return rot_matrix
 
 
-def mask_points_by_range(points, limit_range):
+def mask_points_by_range(points, limit_range): # 现在XY范围
     mask = (points[:, 0] >= limit_range[0]) & (points[:, 0] <= limit_range[3]) \
            & (points[:, 1] >= limit_range[1]) & (points[:, 1] <= limit_range[4])
     return mask

@@ -39,7 +39,7 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
         data_timer = time.time()
         cur_data_time = data_timer - end
 
-        lr_scheduler.step(accumulated_iter, cur_epoch)
+        lr_scheduler.step(accumulated_iter, cur_epoch) # 更新lr_rate和mom
 
         try:
             cur_lr = float(optimizer.lr)
@@ -49,17 +49,17 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
         if tb_log is not None:
             tb_log.add_scalar('meta_data/learning_rate', cur_lr, accumulated_iter)
 
-        model.train()
-        optimizer.zero_grad()
+        model.train() # 设置为training mode，标志着启用dropout和batchnorm等
+        optimizer.zero_grad() # 清空梯度
 
         with torch.cuda.amp.autocast(enabled=use_amp):
             loss, tb_dict, disp_dict = model_func(model, batch) # 调用了外部定义的model_func，计算loss.mean()
 
         scaler.scale(loss).backward() # 反向梯度传播
-        scaler.unscale_(optimizer)
-        clip_grad_norm_(model.parameters(), optim_cfg.GRAD_NORM_CLIP)
-        scaler.step(optimizer)
-        scaler.update()
+        scaler.unscale_(optimizer) # 将优化器持有的梯度除以之前放大的scale，恢复真实梯度
+        clip_grad_norm_(model.parameters(), optim_cfg.GRAD_NORM_CLIP) # 若所有参数的梯度和大于GRAD_NORM_CLIP，则需要裁减梯度
+        scaler.step(optimizer) # 检查梯度是否正常，若正常，则调用optimizer.step()更新，反之跳过
+        scaler.update() # 动态调整 scale factor。
 
         accumulated_iter += 1
  
@@ -79,7 +79,7 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
             data_time.update(avg_data_time) # 更新时间
             forward_time.update(avg_forward_time)
             batch_time.update(avg_batch_time)
-            losses_m.update(loss.item() , batch_size)
+            losses_m.update(loss.item() , batch_size) # item()将loss转换为标量
             
             disp_dict.update({
                 'loss': loss.item(), 'lr': cur_lr, 'd_time': f'{data_time.val:.2f}({data_time.avg:.2f})',
@@ -88,12 +88,12 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
             
             if use_logger_to_record:
                 if accumulated_iter % logger_iter_interval == 0 or cur_it == start_it or cur_it + 1 == total_it_each_epoch:
-                    trained_time_past_all = tbar.format_dict['elapsed']
+                    trained_time_past_all = tbar.format_dict['elapsed'] # 从进度条开始到现在的时间
                     second_each_iter = pbar.format_dict['elapsed'] / max(cur_it - start_it + 1, 1.0)
 
                     trained_time_each_epoch = pbar.format_dict['elapsed']
-                    remaining_second_each_epoch = second_each_iter * (total_it_each_epoch - cur_it)
-                    remaining_second_all = second_each_iter * ((total_epochs - cur_epoch) * total_it_each_epoch - cur_it)
+                    remaining_second_each_epoch = second_each_iter * (total_it_each_epoch - cur_it) # 当前epoch剩余时间
+                    remaining_second_all = second_each_iter * ((total_epochs - cur_epoch) * total_it_each_epoch - cur_it) # 剩余训练时间
                     
                     logger.info(
                         'Train: {:>4d}/{} ({:>3.0f}%) [{:>4d}/{} ({:>3.0f}%)]  '
@@ -130,7 +130,7 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
                 tb_log.add_scalar('train/loss', loss, accumulated_iter)
                 tb_log.add_scalar('meta_data/learning_rate', cur_lr, accumulated_iter)
                 for key, val in tb_dict.items():
-                    tb_log.add_scalar('train/' + key, val, accumulated_iter)
+                    tb_log.add_scalar('train/' + key, val, accumulated_iter) # tensorboard记录各种loss
             
             # save intermediate ckpt every {ckpt_save_time_interval} seconds         
             time_past_this_epoch = pbar.format_dict['elapsed']
@@ -138,7 +138,7 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
                 ckpt_name = ckpt_save_dir / 'latest_model'
                 save_checkpoint(
                     checkpoint_state(model, optimizer, cur_epoch, accumulated_iter), filename=ckpt_name,
-                )
+                ) # 每隔ckpt_save_time_interval保存epoch、优化器、模型参数、pcdet版本信息
                 logger.info(f'Save latest model to {ckpt_name}')
                 ckpt_save_cnt += 1
                 

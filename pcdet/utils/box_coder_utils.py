@@ -22,7 +22,7 @@ class ResidualCoder(object):
         anchors[:, 3:6] = torch.clamp_min(anchors[:, 3:6], min=1e-5)
         boxes[:, 3:6] = torch.clamp_min(boxes[:, 3:6], min=1e-5)
 
-        xa, ya, za, dxa, dya, dza, ra, *cas = torch.split(anchors, 1, dim=-1)
+        xa, ya, za, dxa, dya, dza, ra, *cas = torch.split(anchors, 1, dim=-1) # 其中1表示拆分的间隔
         xg, yg, zg, dxg, dyg, dzg, rg, *cgs = torch.split(boxes, 1, dim=-1)
 
         diagonal = torch.sqrt(dxa ** 2 + dya ** 2)

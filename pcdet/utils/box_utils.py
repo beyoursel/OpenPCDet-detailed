@@ -104,7 +104,7 @@ def mask_boxes_outside_range_numpy(boxes, limit_range, min_num_corners=1, use_ce
         boxes = boxes[:, 0:7]
     if use_center_to_filter:
         box_centers = boxes[:, 0:3]
-        mask = ((box_centers >= limit_range[0:3]) & (box_centers <= limit_range[3:6])).all(axis=-1)
+        mask = ((box_centers >= limit_range[0:3]) & (box_centers <= limit_range[3:6])).all(axis=-1) # axis=-1 表示对每行（每个点）做 all 操作
     else:
         corners = boxes_to_corners_3d(boxes)  # (N, 8, 3)
         corners = corners[:, :, 0:2]
@@ -315,6 +315,7 @@ def boxes3d_lidar_to_aligned_bev_boxes(boxes3d):
     """
     Args:
         boxes3d: (N, 7 + C) [x, y, z, dx, dy, dz, heading] in lidar coordinate
+        把旋转 3D 框用一个“不旋转”的最小外接矩形近似。
 
     Returns:
         aligned_bev_boxes: (N, 4) [x1, y1, x2, y2] in the above lidar coordinate
@@ -328,8 +329,8 @@ def boxes3d_lidar_to_aligned_bev_boxes(boxes3d):
 def boxes3d_nearest_bev_iou(boxes_a, boxes_b):
     """
     Args:
-        boxes_a: (N, 7) [x, y, z, dx, dy, dz, heading]
-        boxes_b: (N, 7) [x, y, z, dx, dy, dz, heading]
+        boxes_a: (N, 7) [x, y, z, dx, dy, dz, heading] anchors
+        boxes_b: (N, 7) [x, y, z, dx, dy, dz, heading] gt-boxes
 
     Returns:
 

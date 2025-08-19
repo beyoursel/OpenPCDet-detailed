@@ -148,8 +148,8 @@ class OptimWrapper():
                         if p.requires_grad is False:
                             continue
                         p.data.mul_(1 - wd * lr)
-            self.set_val('weight_decay', listify(0, self._wd))
-        self.opt.step()
+            self.set_val('weight_decay', listify(0, self._wd)) # 已经手动做完了权重衰减，就把原优化器内部的 weight_decay 全部置 0，避免重复计算
+        self.opt.step() # 执行优化器内部的参数更新
 
     def zero_grad(self) -> None:
         "Clear optimizer gradients."

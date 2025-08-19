@@ -122,7 +122,7 @@ class KittiDataset(DatasetTemplate):
 
         # Ensure normal is always facing up, this is in the rectified camera coordinate
         if plane[1] > 0:
-            plane = -plane
+            plane = -plane # 保持平面法向量指向上
 
         norm = np.linalg.norm(plane[0:3])
         plane = plane / norm
@@ -374,7 +374,7 @@ class KittiDataset(DatasetTemplate):
         if self._merge_all_iters_to_one_epoch:
             index = index % len(self.kitti_infos)
 
-        info = copy.deepcopy(self.kitti_infos[index])
+        info = copy.deepcopy(self.kitti_infos[index]) # 取出当前index对应的训练数据信息
 
         sample_idx = info['point_cloud']['lidar_idx']
         img_shape = info['image']['image_shape']
@@ -392,7 +392,7 @@ class KittiDataset(DatasetTemplate):
             loc, dims, rots = annos['location'], annos['dimensions'], annos['rotation_y']
             gt_names = annos['name']
             gt_boxes_camera = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
-            gt_boxes_lidar = box_utils.boxes3d_kitti_camera_to_lidar(gt_boxes_camera, calib)
+            gt_boxes_lidar = box_utils.boxes3d_kitti_camera_to_lidar(gt_boxes_camera, calib) # annos中都已经有gt_boxes_lidar
 
             input_dict.update({
                 'gt_names': gt_names,
@@ -401,13 +401,13 @@ class KittiDataset(DatasetTemplate):
             if "gt_boxes2d" in get_item_list:
                 input_dict['gt_boxes2d'] = annos["bbox"]
 
-            road_plane = self.get_road_plane(sample_idx)
+            road_plane = self.get_road_plane(sample_idx) # 得到归一化的地面法向量
             if road_plane is not None:
                 input_dict['road_plane'] = road_plane
 
         if "points" in get_item_list:
             points = self.get_lidar(sample_idx)
-            if self.dataset_cfg.FOV_POINTS_ONLY:
+            if self.dataset_cfg.FOV_POINTS_ONLY: # 仅获取fov内的点云数据
                 pts_rect = calib.lidar_to_rect(points[:, 0:3])
                 fov_flag = self.get_fov_flag(pts_rect, img_shape, calib)
                 points = points[fov_flag]
@@ -423,7 +423,7 @@ class KittiDataset(DatasetTemplate):
             input_dict["trans_lidar_to_cam"], input_dict["trans_cam_to_img"] = kitti_utils.calib_to_matricies(calib)
 
         input_dict['calib'] = calib
-        data_dict = self.prepare_data(data_dict=input_dict)
+        data_dict = self.prepare_data(data_dict=input_dict) # 数据增广、数据处理
 
         data_dict['image_shape'] = img_shape
         return data_dict

@@ -61,7 +61,7 @@ class DataAugmentor(object):
             assert cur_axis in ['x', 'y']
             gt_boxes, points, enable = getattr(augmentor_utils, 'random_flip_along_%s' % cur_axis)(
                 gt_boxes, points, return_flip=True
-            )
+            ) # enable用来标记是否使用了随机翻转
             data_dict['flip_%s'%cur_axis] = enable
             if 'roi_boxes' in data_dict.keys():
                 num_frame, num_rois,dim = data_dict['roi_boxes'].shape
@@ -298,12 +298,12 @@ class DataAugmentor(object):
 
         Returns:
         """
-        for cur_augmentor in self.data_augmentor_queue:
+        for cur_augmentor in self.data_augmentor_queue: # 依次执行
             data_dict = cur_augmentor(data_dict=data_dict)
 
         data_dict['gt_boxes'][:, 6] = common_utils.limit_period(
             data_dict['gt_boxes'][:, 6], offset=0.5, period=2 * np.pi
-        )
+        ) # 将yaw角限制在[-np.pi, np.pi]之间
         # if 'calib' in data_dict:
         #     data_dict.pop('calib')
         if 'road_plane' in data_dict:

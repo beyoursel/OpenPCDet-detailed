@@ -12,9 +12,9 @@ class PointPillarScatter(nn.Module):
         assert self.nz == 1
 
     def forward(self, batch_dict, **kwargs):
-        pillar_features, coords = batch_dict['pillar_features'], batch_dict['voxel_coords']
+        pillar_features, coords = batch_dict['pillar_features'], batch_dict['voxel_coords'] # voxel_coords为z, y, x顺序
         batch_spatial_features = []
-        batch_size = coords[:, 0].max().int().item() + 1
+        batch_size = coords[:, 0].max().int().item() + 1 # coords第一列为batch_size id
         for batch_idx in range(batch_size):
             spatial_feature = torch.zeros(
                 self.num_bev_features,
@@ -22,17 +22,18 @@ class PointPillarScatter(nn.Module):
                 dtype=pillar_features.dtype,
                 device=pillar_features.device)
 
-            batch_mask = coords[:, 0] == batch_idx
+            batch_mask = coords[:, 0] == batch_idx # 取出当前帧
             this_coords = coords[batch_mask, :]
-            indices = this_coords[:, 1] + this_coords[:, 2] * self.nx + this_coords[:, 3]
+            # 下面的代码已经假定特征是按照(y, x)的顺序在内存中排列
+            indices = this_coords[:, 1] + this_coords[:, 2] * self.nx + this_coords[:, 3] # z * (nx * ny) + y * nx + x 对于pointpillar nz等于1，则z恒等于0，简化为y*nx + x
             indices = indices.type(torch.long)
             pillars = pillar_features[batch_mask, :]
             pillars = pillars.t()
-            spatial_feature[:, indices] = pillars
+            spatial_feature[:, indices] = pillars # 将pillar特征放回bev下对应位置
             batch_spatial_features.append(spatial_feature)
 
         batch_spatial_features = torch.stack(batch_spatial_features, 0)
-        batch_spatial_features = batch_spatial_features.view(batch_size, self.num_bev_features * self.nz, self.ny, self.nx)
+        batch_spatial_features = batch_spatial_features.view(batch_size, self.num_bev_features * self.nz, self.ny, self.nx) # 恢复为(ny, nx)的feature map
         batch_dict['spatial_features'] = batch_spatial_features
         return batch_dict
 

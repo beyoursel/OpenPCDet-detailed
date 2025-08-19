@@ -63,11 +63,11 @@ MODEL:
 
     BACKBONE_2D:
         NAME: BaseBEVBackbone
-        LAYER_NUMS: [3, 5, 5]
-        LAYER_STRIDES: [2, 2, 2]
-        NUM_FILTERS: [64, 128, 256]
-        UPSAMPLE_STRIDES: [1, 2, 4]
-        NUM_UPSAMPLE_FILTERS: [128, 128, 128]
+        LAYER_NUMS: [3, 5, 5] # 除去通道转换的层
+        LAYER_STRIDES: [2, 2, 2] # 依次2倍下采样
+        NUM_FILTERS: [64, 128, 256] # 下采样步数加倍，通道数加倍
+        UPSAMPLE_STRIDES: [1, 2, 4] # 上采样步长
+        NUM_UPSAMPLE_FILTERS: [128, 128, 128] # 最终每个block输出的结果上采样后均为128通道
 
     DENSE_HEAD:
         NAME: AnchorHeadSingle

@@ -13,7 +13,7 @@ INFO_PATH: {
     'test': [kitti_infos_val.pkl],
 }
 
-GET_ITEM_LIST: ["points"]
+GET_ITEM_LIST: ["points"] # 需要从数据集上获取的数据
 FOV_POINTS_ONLY: True
 
 DATA_AUGMENTOR:

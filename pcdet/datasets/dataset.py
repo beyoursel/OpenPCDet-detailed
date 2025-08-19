@@ -140,12 +140,12 @@ class DatasetTemplate(torch_data.Dataset):
             flip_x = data_dict['flip_x']
             flip_y = data_dict['flip_y']
             if flip_x:
-                lidar_aug_matrix[:3,:3] = np.array([[1, 0, 0], [0, -1, 0], [0, 0, 1]]) @ lidar_aug_matrix[:3,:3]
+                lidar_aug_matrix[:3,:3] = np.array([[1, 0, 0], [0, -1, 0], [0, 0, 1]]) @ lidar_aug_matrix[:3,:3] # y取反
             if flip_y:
-                lidar_aug_matrix[:3,:3] = np.array([[-1, 0, 0], [0, 1, 0], [0, 0, 1]]) @ lidar_aug_matrix[:3,:3]
+                lidar_aug_matrix[:3,:3] = np.array([[-1, 0, 0], [0, 1, 0], [0, 0, 1]]) @ lidar_aug_matrix[:3,:3] # x取反
         if 'noise_rot' in data_dict.keys():
             noise_rot = data_dict['noise_rot']
-            lidar_aug_matrix[:3,:3] = common_utils.angle2matrix(torch.tensor(noise_rot)) @ lidar_aug_matrix[:3,:3]
+            lidar_aug_matrix[:3,:3] = common_utils.angle2matrix(torch.tensor(noise_rot)) @ lidar_aug_matrix[:3,:3] # 旋转变换
         if 'noise_scale' in data_dict.keys():
             noise_scale = data_dict['noise_scale']
             lidar_aug_matrix[:3,:3] *= noise_scale
@@ -178,7 +178,7 @@ class DatasetTemplate(torch_data.Dataset):
         """
         if self.training:
             assert 'gt_boxes' in data_dict, 'gt_boxes should be provided for training'
-            gt_boxes_mask = np.array([n in self.class_names for n in data_dict['gt_names']], dtype=np.bool_)
+            gt_boxes_mask = np.array([n in self.class_names for n in data_dict['gt_names']], dtype=np.bool_) # 仅关注指定的类别
             
             if 'calib' in data_dict:
                 calib = data_dict['calib']
@@ -187,16 +187,16 @@ class DatasetTemplate(torch_data.Dataset):
                     **data_dict,
                     'gt_boxes_mask': gt_boxes_mask
                 }
-            )
+            ) # 数据增广
             if 'calib' in data_dict:
                 data_dict['calib'] = calib
         data_dict = self.set_lidar_aug_matrix(data_dict)
         if data_dict.get('gt_boxes', None) is not None:
-            selected = common_utils.keep_arrays_by_name(data_dict['gt_names'], self.class_names)
+            selected = common_utils.keep_arrays_by_name(data_dict['gt_names'], self.class_names) # 取出self.class_names中包含的gt
             data_dict['gt_boxes'] = data_dict['gt_boxes'][selected]
             data_dict['gt_names'] = data_dict['gt_names'][selected]
-            gt_classes = np.array([self.class_names.index(n) + 1 for n in data_dict['gt_names']], dtype=np.int32)
-            gt_boxes = np.concatenate((data_dict['gt_boxes'], gt_classes.reshape(-1, 1).astype(np.float32)), axis=1)
+            gt_classes = np.array([self.class_names.index(n) + 1 for n in data_dict['gt_names']], dtype=np.int32) # 根据gt_name取出在self.class_names中的index，从1开始
+            gt_boxes = np.concatenate((data_dict['gt_boxes'], gt_classes.reshape(-1, 1).astype(np.float32)), axis=1) # shape: (N,8)
             data_dict['gt_boxes'] = gt_boxes
 
             if data_dict.get('gt_boxes2d', None) is not None:
@@ -207,7 +207,7 @@ class DatasetTemplate(torch_data.Dataset):
 
         data_dict = self.data_processor.forward(
             data_dict=data_dict
-        )
+        ) # 数据预处理,voxel划分等
 
         if self.training and len(data_dict['gt_boxes']) == 0:
             new_index = np.random.randint(self.__len__())
@@ -239,8 +239,8 @@ class DatasetTemplate(torch_data.Dataset):
                     if isinstance(val[0], list):
                         val =  [i for item in val for i in item]
                     for i, coor in enumerate(val):
-                        coor_pad = np.pad(coor, ((0, 0), (1, 0)), mode='constant', constant_values=i)
-                        coors.append(coor_pad)
+                        coor_pad = np.pad(coor, ((0, 0), (1, 0)), mode='constant', constant_values=i) # 0 维（行方向）：前面补 0 行，后面补 0 行 → 行数不变。1 维（列方向）：前面补 1 列，后面补 0 列 → 多了一列在最左边。
+                        coors.append(coor_pad) # 上述代码将点云特征第一维用batch_id填充
                     ret[key] = np.concatenate(coors, axis=0)
                 elif key in ['gt_boxes']:
                     max_gt = max([len(x) for x in val])

@@ -84,7 +84,7 @@ class PillarVFE(VFETemplate):
         return self.num_filters[-1]
 
     def get_paddings_indicator(self, actual_num, max_num, axis=0):
-        actual_num = torch.unsqueeze(actual_num, axis + 1)
+        actual_num = torch.unsqueeze(actual_num, axis + 1) # 在axis+1加上维度且值为1
         max_num_shape = [1] * len(actual_num.shape)
         max_num_shape[axis + 1] = -1
         max_num = torch.arange(max_num, dtype=torch.int, device=actual_num.device).view(max_num_shape)
@@ -94,11 +94,11 @@ class PillarVFE(VFETemplate):
     def forward(self, batch_dict, **kwargs):
   
         voxel_features, voxel_num_points, coords = batch_dict['voxels'], batch_dict['voxel_num_points'], batch_dict['voxel_coords']
-        points_mean = voxel_features[:, :, :3].sum(dim=1, keepdim=True) / voxel_num_points.type_as(voxel_features).view(-1, 1, 1)
-        f_cluster = voxel_features[:, :, :3] - points_mean
+        points_mean = voxel_features[:, :, :3].sum(dim=1, keepdim=True) / voxel_num_points.type_as(voxel_features).view(-1, 1, 1) # 计算每个voxel内的均值坐标
+        f_cluster = voxel_features[:, :, :3] - points_mean # 计算voxel内每个点相对于points_mean的坐标
 
         f_center = torch.zeros_like(voxel_features[:, :, :3])
-        f_center[:, :, 0] = voxel_features[:, :, 0] - (coords[:, 3].to(voxel_features.dtype).unsqueeze(1) * self.voxel_x + self.x_offset)
+        f_center[:, :, 0] = voxel_features[:, :, 0] - (coords[:, 3].to(voxel_features.dtype).unsqueeze(1) * self.voxel_x + self.x_offset) # 计算pillar内每个点相对于voxel中心绝对坐标的坐标
         f_center[:, :, 1] = voxel_features[:, :, 1] - (coords[:, 2].to(voxel_features.dtype).unsqueeze(1) * self.voxel_y + self.y_offset)
         f_center[:, :, 2] = voxel_features[:, :, 2] - (coords[:, 1].to(voxel_features.dtype).unsqueeze(1) * self.voxel_z + self.z_offset)
 
@@ -112,12 +112,12 @@ class PillarVFE(VFETemplate):
             features.append(points_dist)
         features = torch.cat(features, dim=-1)
 
-        voxel_count = features.shape[1]
+        voxel_count = features.shape[1] # voxel内点的最大数量
         mask = self.get_paddings_indicator(voxel_num_points, voxel_count, axis=0)
         mask = torch.unsqueeze(mask, -1).type_as(voxel_features)
         features *= mask
         for pfn in self.pfn_layers:
-            features = pfn(features)
+            features = pfn(features) # MLP+Maxpooling（pointnet）
         features = features.squeeze()
         batch_dict['pillar_features'] = features
         return batch_dict

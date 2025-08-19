@@ -43,7 +43,7 @@ def model_fn_decorator():
         load_data_to_gpu(batch_dict)
         ret_dict, tb_dict, disp_dict = model(batch_dict)
 
-        loss = ret_dict['loss'].mean()
+        loss = ret_dict['loss'].mean() # 计算loss均值
         if hasattr(model, 'update_global_step'):
             model.update_global_step()
         else:

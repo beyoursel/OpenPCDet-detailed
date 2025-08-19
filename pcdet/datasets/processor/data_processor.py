@@ -55,9 +55,9 @@ class VoxelGeneratorWrapper():
             voxel_output = self._voxel_generator.point_to_voxel(tv.from_numpy(points))
             tv_voxels, tv_coordinates, tv_num_points = voxel_output
             # make copy with numpy(), since numpy_view() will disappear as soon as the generator is deleted
-            voxels = tv_voxels.numpy()
-            coordinates = tv_coordinates.numpy()
-            num_points = tv_num_points.numpy()
+            voxels = tv_voxels.numpy() # [voxel_num, max_points_voxel, num_feature]
+            coordinates = tv_coordinates.numpy() # voxel坐标 voxel generator in spconv generate indices in ZYX order, the params format are XYZ.
+            num_points = tv_num_points.numpy() # 每个voxel中的点数量
         return voxels, coordinates, num_points
 
 
@@ -82,7 +82,7 @@ class DataProcessor(object):
 
         if data_dict.get('points', None) is not None:
             mask = common_utils.mask_points_by_range(data_dict['points'], self.point_cloud_range)
-            data_dict['points'] = data_dict['points'][mask] # 仅保留在point_cloud_range之内的点云数据
+            data_dict['points'] = data_dict['points'][mask] # 仅保留在XY范围之内的点云数据
 
         if data_dict.get('gt_boxes', None) is not None and config.REMOVE_OUTSIDE_BOXES and self.training:
             mask = box_utils.mask_boxes_outside_range_numpy(
@@ -149,8 +149,8 @@ class DataProcessor(object):
             )
 
         points = data_dict['points']
-        voxel_output = self.voxel_generator.generate(points)
-        voxels, coordinates, num_points = voxel_output
+        voxel_output = self.voxel_generator.generate(points) # 划分体素
+        voxels, coordinates, num_points = voxel_output # 体素化点云、体素坐标、voxel中的点数量
 
         if not data_dict['use_lead_xyz']:
             voxels = voxels[..., 3:]  # remove xyz in voxels(N, 3)

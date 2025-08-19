@@ -23,7 +23,7 @@ def boxes_bev_iou_cpu(boxes_a, boxes_b):
     assert not (boxes_a.is_cuda or boxes_b.is_cuda), 'Only support CPU tensors'
     assert boxes_a.shape[1] == 7 and boxes_b.shape[1] == 7
     ans_iou = boxes_a.new_zeros(torch.Size((boxes_a.shape[0], boxes_b.shape[0])))
-    iou3d_nms_cuda.boxes_iou_bev_cpu(boxes_a.contiguous(), boxes_b.contiguous(), ans_iou)
+    iou3d_nms_cuda.boxes_iou_bev_cpu(boxes_a.contiguous(), boxes_b.contiguous(), ans_iou) # 放在cuda上并行计算
 
     return ans_iou.numpy() if is_numpy else ans_iou
 

@@ -137,12 +137,12 @@ class DataBaseSampler(object):
         """
         sample_num, pointer, indices = int(sample_group['sample_num']), sample_group['pointer'], sample_group['indices']
         if pointer >= len(self.db_infos[class_name]):
-            indices = np.random.permutation(len(self.db_infos[class_name]))
+            indices = np.random.permutation(len(self.db_infos[class_name])) # 生成0到len(self.db_infos[class_name])-1的索引，并打乱顺序
             pointer = 0
 
         sampled_dict = [self.db_infos[class_name][idx] for idx in indices[pointer: pointer + sample_num]]
         pointer += sample_num
-        sample_group['pointer'] = pointer
+        sample_group['pointer'] = pointer # 标记上一次采样后结束的位置
         sample_group['indices'] = indices
         return sampled_dict
 
@@ -157,13 +157,13 @@ class DataBaseSampler(object):
 
         Returns:
         """
-        a, b, c, d = road_planes
-        center_cam = calib.lidar_to_rect(gt_boxes[:, 0:3])
-        cur_height_cam = (-d - a * center_cam[:, 0] - c * center_cam[:, 2]) / b
-        center_cam[:, 1] = cur_height_cam
-        cur_lidar_height = calib.rect_to_lidar(center_cam)[:, 2]
-        mv_height = gt_boxes[:, 2] - gt_boxes[:, 5] / 2 - cur_lidar_height
-        gt_boxes[:, 2] -= mv_height  # lidar view
+        a, b, c, d = road_planes # aX+bY+cZ+d=0
+        center_cam = calib.lidar_to_rect(gt_boxes[:, 0:3]) # x-right y-down z-up(camera-frame)
+        cur_height_cam = (-d - a * center_cam[:, 0] - c * center_cam[:, 2]) / b # Y = (-aX -cZ - d) / b ，计算得到box中心点投影到地面的高度
+        center_cam[:, 1] = cur_height_cam # 根据地面高度修正box中心位置的高度
+        cur_lidar_height = calib.rect_to_lidar(center_cam)[:, 2] # 转到lidar-frame，取出对应的z值
+        mv_height = gt_boxes[:, 2] - gt_boxes[:, 5] / 2 - cur_lidar_height # gt_boxes[:, 2] - gt_boxes[:, 5] / 2得到gt-box地面高度，减去平面高度，得到gt-box需要移动的高度
+        gt_boxes[:, 2] -= mv_height  # lidar view gt-box中心的高度减去需要移动的高度，使得采样的gt-box底面在平面上
         return gt_boxes, mv_height
 
     def copy_paste_to_image_kitti(self, data_dict, crop_feat, gt_number, point_idxes=None):
@@ -363,14 +363,14 @@ class DataBaseSampler(object):
         return data_dict
 
     def add_sampled_boxes_to_scene(self, data_dict, sampled_gt_boxes, total_valid_sampled_dict, mv_height=None, sampled_gt_boxes2d=None):
-        gt_boxes_mask = data_dict['gt_boxes_mask']
+        gt_boxes_mask = data_dict['gt_boxes_mask'] # 过滤当前关注的类别
         gt_boxes = data_dict['gt_boxes'][gt_boxes_mask]
         gt_names = data_dict['gt_names'][gt_boxes_mask]
         points = data_dict['points']
         if self.sampler_cfg.get('USE_ROAD_PLANE', False) and mv_height is None:
-            sampled_gt_boxes, mv_height = self.put_boxes_on_road_planes(
+            sampled_gt_boxes, mv_height = self.put_boxes_on_road_planes( # 使用地面平面方程
                 sampled_gt_boxes, data_dict['road_plane'], data_dict['calib']
-            )
+            ) # 返回高度修正的sample-gt，和高度上移动的距离
             data_dict.pop('calib')
             data_dict.pop('road_plane')
 
@@ -390,19 +390,19 @@ class DataBaseSampler(object):
                 start_offset, end_offset = info['global_data_offset']
                 obj_points = copy.deepcopy(gt_database_data[start_offset:end_offset])
             else:
-                file_path = self.root_path / info['path']
+                file_path = self.root_path / info['path'] # 存放采样gt点云的路径
 
                 obj_points = np.fromfile(str(file_path), dtype=np.float32).reshape(
                     [-1, self.sampler_cfg.NUM_POINT_FEATURES])
                 if obj_points.shape[0] != info['num_points_in_gt']:
-                    obj_points = np.fromfile(str(file_path), dtype=np.float64).reshape(-1, self.sampler_cfg.NUM_POINT_FEATURES)
+                    obj_points = np.fromfile(str(file_path), dtype=np.float64).reshape(-1, self.sampler_cfg.NUM_POINT_FEATURES) # 验证加载的点云数量和创建gt-database时的记录值是否一致
 
             assert obj_points.shape[0] == info['num_points_in_gt']
-            obj_points[:, :3] += info['box3d_lidar'][:3].astype(np.float32)
+            obj_points[:, :3] += info['box3d_lidar'][:3].astype(np.float32) # obj-points是相对gt-center的坐标，恢复lidar系下的坐标
 
             if self.sampler_cfg.get('USE_ROAD_PLANE', False):
                 # mv height
-                obj_points[:, 2] -= mv_height[idx]
+                obj_points[:, 2] -= mv_height[idx] # 移动采样gt点云的z值
 
             if self.img_aug_type is not None:
                 img_aug_gt_dict, obj_points = self.collect_image_crops(
@@ -414,7 +414,7 @@ class DataBaseSampler(object):
         obj_points = np.concatenate(obj_points_list, axis=0)
         sampled_gt_names = np.array([x['name'] for x in total_valid_sampled_dict])
 
-        if self.sampler_cfg.get('FILTER_OBJ_POINTS_BY_TIMESTAMP', False) or obj_points.shape[-1] != points.shape[-1]:
+        if self.sampler_cfg.get('FILTER_OBJ_POINTS_BY_TIMESTAMP', False) or obj_points.shape[-1] != points.shape[-1]: # 基于时间戳过滤点云
             if self.sampler_cfg.get('FILTER_OBJ_POINTS_BY_TIMESTAMP', False):
                 min_time = min(self.sampler_cfg.TIME_RANGE[0], self.sampler_cfg.TIME_RANGE[1])
                 max_time = max(self.sampler_cfg.TIME_RANGE[0], self.sampler_cfg.TIME_RANGE[1])
@@ -428,9 +428,9 @@ class DataBaseSampler(object):
 
         large_sampled_gt_boxes = box_utils.enlarge_box3d(
             sampled_gt_boxes[:, 0:7], extra_width=self.sampler_cfg.REMOVE_EXTRA_WIDTH
-        )
-        points = box_utils.remove_points_in_boxes3d(points, large_sampled_gt_boxes)
-        points = np.concatenate([obj_points[:, :points.shape[-1]], points], axis=0)
+        ) # 外扩gt-box
+        points = box_utils.remove_points_in_boxes3d(points, large_sampled_gt_boxes) # 移除原始点云在采样gt-box中点
+        points = np.concatenate([obj_points[:, :points.shape[-1]], points], axis=0) # 合并gt点云和原始点云
         gt_names = np.concatenate([gt_names, sampled_gt_names], axis=0)
         gt_boxes = np.concatenate([gt_boxes, sampled_gt_boxes], axis=0)
         data_dict['gt_boxes'] = gt_boxes
@@ -453,7 +453,7 @@ class DataBaseSampler(object):
         """
         gt_boxes = data_dict['gt_boxes']
         gt_names = data_dict['gt_names'].astype(str)
-        existed_boxes = gt_boxes
+        existed_boxes = gt_boxes # 当前帧gt
         total_valid_sampled_dict = []
         sampled_mv_height = []
         sampled_gt_boxes2d = []
@@ -461,19 +461,19 @@ class DataBaseSampler(object):
         for class_name, sample_group in self.sample_groups.items():
             if self.limit_whole_scene:
                 num_gt = np.sum(class_name == gt_names)
-                sample_group['sample_num'] = str(int(self.sample_class_num[class_name]) - num_gt)
+                sample_group['sample_num'] = str(int(self.sample_class_num[class_name]) - num_gt) # 减去当前帧的gt数量
             if int(sample_group['sample_num']) > 0:
-                sampled_dict = self.sample_with_fixed_number(class_name, sample_group)
+                sampled_dict = self.sample_with_fixed_number(class_name, sample_group) # 获取采样的真值数据
 
-                sampled_boxes = np.stack([x['box3d_lidar'] for x in sampled_dict], axis=0).astype(np.float32)
+                sampled_boxes = np.stack([x['box3d_lidar'] for x in sampled_dict], axis=0).astype(np.float32) # stack gt-boxes
 
                 assert not self.sampler_cfg.get('DATABASE_WITH_FAKELIDAR', False), 'Please use latest codes to generate GT_DATABASE'
 
-                iou1 = iou3d_nms_utils.boxes_bev_iou_cpu(sampled_boxes[:, 0:7], existed_boxes[:, 0:7])
-                iou2 = iou3d_nms_utils.boxes_bev_iou_cpu(sampled_boxes[:, 0:7], sampled_boxes[:, 0:7])
-                iou2[range(sampled_boxes.shape[0]), range(sampled_boxes.shape[0])] = 0
-                iou1 = iou1 if iou1.shape[1] > 0 else iou2
-                valid_mask = ((iou1.max(axis=1) + iou2.max(axis=1)) == 0)
+                iou1 = iou3d_nms_utils.boxes_bev_iou_cpu(sampled_boxes[:, 0:7], existed_boxes[:, 0:7]) # 计算采样gt box和当前帧gt之间的bev-iou
+                iou2 = iou3d_nms_utils.boxes_bev_iou_cpu(sampled_boxes[:, 0:7], sampled_boxes[:, 0:7]) # 计算采样的gt-box之间的bev-iou
+                iou2[range(sampled_boxes.shape[0]), range(sampled_boxes.shape[0])] = 0 # 将gt-box和自身的bev-iou置为零
+                iou1 = iou1 if iou1.shape[1] > 0 else iou2 # 若当前帧gt数量大于0则iou1保持不变，否则赋值iou2
+                valid_mask = ((iou1.max(axis=1) + iou2.max(axis=1)) == 0) # 若采样gt和当前帧gt的bev-iou为0，同时采样gt之间的bev-iou也为0,则该采样的gt为有效
 
                 if self.img_aug_type is not None:
                     sampled_boxes2d, mv_height, valid_mask = self.sample_gt_boxes_2d(data_dict, sampled_boxes, valid_mask)
@@ -481,14 +481,14 @@ class DataBaseSampler(object):
                     if mv_height is not None:
                         sampled_mv_height.append(mv_height)
 
-                valid_mask = valid_mask.nonzero()[0]
+                valid_mask = valid_mask.nonzero()[0] # 返回非零索引
                 valid_sampled_dict = [sampled_dict[x] for x in valid_mask]
                 valid_sampled_boxes = sampled_boxes[valid_mask]
 
-                existed_boxes = np.concatenate((existed_boxes, valid_sampled_boxes[:, :existed_boxes.shape[-1]]), axis=0)
+                existed_boxes = np.concatenate((existed_boxes, valid_sampled_boxes[:, :existed_boxes.shape[-1]]), axis=0) # 拼接当前帧gt和采样的gt
                 total_valid_sampled_dict.extend(valid_sampled_dict)
 
-        sampled_gt_boxes = existed_boxes[gt_boxes.shape[0]:, :]
+        sampled_gt_boxes = existed_boxes[gt_boxes.shape[0]:, :] # 取出所有采样的gt-boxes
 
         if total_valid_sampled_dict.__len__() > 0:
             sampled_gt_boxes2d = np.concatenate(sampled_gt_boxes2d, axis=0) if len(sampled_gt_boxes2d) > 0 else None
@@ -496,7 +496,7 @@ class DataBaseSampler(object):
 
             data_dict = self.add_sampled_boxes_to_scene(
                 data_dict, sampled_gt_boxes, total_valid_sampled_dict, sampled_mv_height, sampled_gt_boxes2d
-            )
+            ) # 将采样的gt放入场景中
 
         data_dict.pop('gt_boxes_mask')
         return data_dict

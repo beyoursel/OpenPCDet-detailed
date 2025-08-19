@@ -34,7 +34,7 @@ class PointFeatureEncoder(object):
         if self.point_encoding_config.get('filter_sweeps', False) and 'timestamp' in self.src_feature_list:
             max_sweeps = self.point_encoding_config.max_sweeps
             idx = self.src_feature_list.index('timestamp')
-            dt = np.round(data_dict['points'][:, idx], 2)
+            dt = np.round(data_dict['points'][:, idx], 2) # 四舍五入到小数点后2位
             max_dt = sorted(np.unique(dt))[min(len(np.unique(dt))-1, max_sweeps-1)]
             data_dict['points'] = data_dict['points'][dt <= max_dt]
         
@@ -47,8 +47,8 @@ class PointFeatureEncoder(object):
 
         assert points.shape[-1] == len(self.src_feature_list) # 若输入的points不为None，则使用src_feature_list内的特征
         point_feature_list = [points[:, 0:3]]
-        for x in self.used_feature_list:
-            if x in ['x', 'y', 'z']:
+        for x in self.used_feature_list: # 需要使用的点云特征
+            if x in ['x', 'y', 'z']: # 默认包括
                 continue
             idx = self.src_feature_list.index(x)
             point_feature_list.append(points[:, idx:idx+1])

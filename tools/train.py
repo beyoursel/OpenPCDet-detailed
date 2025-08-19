@@ -24,7 +24,7 @@ def parse_config():
 
     parser.add_argument('--batch_size', type=int, default=1, required=False, help='batch size for training')
     parser.add_argument('--epochs', type=int, default=10, required=False, help='number of epochs to train for')
-    parser.add_argument('--workers', type=int, default=1, help='number of workers for dataloader')
+    parser.add_argument('--workers', type=int, default=0, help='number of workers for dataloader')
     parser.add_argument('--extra_tag', type=str, default='default', help='extra tag for this experiment')
     parser.add_argument('--ckpt', type=str, default=None, help='checkpoint to start from')
     parser.add_argument('--pretrained_model', type=str, default=None, help='pretrained_model')
@@ -154,7 +154,7 @@ def main():
                 try:
                     it, start_epoch = model.load_params_with_optimizer(
                         ckpt_list[-1], to_cpu=dist_train, optimizer=optimizer, logger=logger
-                    )
+                    ) # 加载最新的ckpt
                     last_epoch = start_epoch + 1
                     break
                 except:

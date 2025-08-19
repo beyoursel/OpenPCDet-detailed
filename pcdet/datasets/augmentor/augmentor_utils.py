@@ -13,10 +13,10 @@ def random_flip_along_x(gt_boxes, points, return_flip=False, enable=None):
     Returns:
     """
     if enable is None:
-        enable = np.random.choice([False, True], replace=False, p=[0.5, 0.5])
+        enable = np.random.choice([False, True], replace=False, p=[0.5, 0.5]) # 完全随机但是符合概率分布，replace=False表示不放回抽样
     if enable:
-        gt_boxes[:, 1] = -gt_boxes[:, 1]
-        gt_boxes[:, 6] = -gt_boxes[:, 6]
+        gt_boxes[:, 1] = -gt_boxes[:, 1] # 以X-Z平面翻转，y坐标取反
+        gt_boxes[:, 6] = -gt_boxes[:, 6] # 朝向也翻转
         points[:, 1] = -points[:, 1]
         
         if gt_boxes.shape[1] > 7:
@@ -56,10 +56,10 @@ def global_rotation(gt_boxes, points, rot_range, return_rot=False, noise_rotatio
     Returns:
     """
     if noise_rotation is None: 
-        noise_rotation = np.random.uniform(rot_range[0], rot_range[1])
+        noise_rotation = np.random.uniform(rot_range[0], rot_range[1]) # 均匀采样,noise_rotation=0时则没有旋转变换
     points = common_utils.rotate_points_along_z(points[np.newaxis, :, :], np.array([noise_rotation]))[0]
     gt_boxes[:, 0:3] = common_utils.rotate_points_along_z(gt_boxes[np.newaxis, :, 0:3], np.array([noise_rotation]))[0]
-    gt_boxes[:, 6] += noise_rotation
+    gt_boxes[:, 6] += noise_rotation # gt-boxes记录的为yaw角，本身就是绕z轴旋转，因此直接相加
     if gt_boxes.shape[1] > 7:
         gt_boxes[:, 7:9] = common_utils.rotate_points_along_z(
             np.hstack((gt_boxes[:, 7:9], np.zeros((gt_boxes.shape[0], 1))))[np.newaxis, :, :],
@@ -81,9 +81,9 @@ def global_scaling(gt_boxes, points, scale_range, return_scale=False):
     """
     if scale_range[1] - scale_range[0] < 1e-3:
         return gt_boxes, points
-    noise_scale = np.random.uniform(scale_range[0], scale_range[1])
-    points[:, :3] *= noise_scale
-    gt_boxes[:, :6] *= noise_scale
+    noise_scale = np.random.uniform(scale_range[0], scale_range[1]) # 均匀采样
+    points[:, :3] *= noise_scale # 缩放点云坐标
+    gt_boxes[:, :6] *= noise_scale # 缩放x, y, z, l, w, h
     if gt_boxes.shape[1] > 7:
         gt_boxes[:, 7:] *= noise_scale
         
