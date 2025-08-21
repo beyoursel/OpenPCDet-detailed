@@ -19,17 +19,17 @@ class ResidualCoder(object):
         Returns:
 
         """
-        anchors[:, 3:6] = torch.clamp_min(anchors[:, 3:6], min=1e-5)
+        anchors[:, 3:6] = torch.clamp_min(anchors[:, 3:6], min=1e-5) # dx, dy, dz需要大于0
         boxes[:, 3:6] = torch.clamp_min(boxes[:, 3:6], min=1e-5)
 
-        xa, ya, za, dxa, dya, dza, ra, *cas = torch.split(anchors, 1, dim=-1) # 其中1表示拆分的间隔
+        xa, ya, za, dxa, dya, dza, ra, *cas = torch.split(anchors, 1, dim=-1) # 其中1表示拆分的间隔，-1表示最后一个维度
         xg, yg, zg, dxg, dyg, dzg, rg, *cgs = torch.split(boxes, 1, dim=-1)
 
         diagonal = torch.sqrt(dxa ** 2 + dya ** 2)
-        xt = (xg - xa) / diagonal
+        xt = (xg - xa) / diagonal # 除以对角线
         yt = (yg - ya) / diagonal
         zt = (zg - za) / dza
-        dxt = torch.log(dxg / dxa)
+        dxt = torch.log(dxg / dxa) # 预测的是gt和anchor尺度比值的对数
         dyt = torch.log(dyg / dya)
         dzt = torch.log(dzg / dza)
         if self.encode_angle_by_sincos:
@@ -37,7 +37,7 @@ class ResidualCoder(object):
             rt_sin = torch.sin(rg) - torch.sin(ra)
             rts = [rt_cos, rt_sin]
         else:
-            rts = [rg - ra]
+            rts = [rg - ra] # 航向角直接回归差值
 
         cts = [g - a for g, a in zip(cgs, cas)]
         return torch.cat([xt, yt, zt, dxt, dyt, dzt, *rts, *cts], dim=-1)

@@ -31,7 +31,7 @@ class AnchorHeadTemplate(nn.Module):
         self.anchors = [x.cuda() for x in anchors]
         self.target_assigner = self.get_target_assigner(anchor_target_cfg) # 正负样本分配
 
-        self.forward_ret_dict = {}
+        self.forward_ret_dict = {} # 保存前向传播的计算结果
         self.build_losses(self.model_cfg.LOSS_CONFIG) # 构建损失函数
 
     @staticmethod
@@ -102,31 +102,31 @@ class AnchorHeadTemplate(nn.Module):
         cls_preds = self.forward_ret_dict['cls_preds']
         box_cls_labels = self.forward_ret_dict['box_cls_labels']
         batch_size = int(cls_preds.shape[0])
-        cared = box_cls_labels >= 0  # [N, num_anchors]
-        positives = box_cls_labels > 0
-        negatives = box_cls_labels == 0
+        cared = box_cls_labels >= 0  # [N, num_anchors] 仅关注正负样本，不关注
+        positives = box_cls_labels > 0 # 正样本
+        negatives = box_cls_labels == 0 # 负样本
         negative_cls_weights = negatives * 1.0
         cls_weights = (negative_cls_weights + 1.0 * positives).float()
-        reg_weights = positives.float()
+        reg_weights = positives.float() # 冗余
         if self.num_class == 1:
             # class agnostic
             box_cls_labels[positives] = 1
 
-        pos_normalizer = positives.sum(1, keepdim=True).float()
-        reg_weights /= torch.clamp(pos_normalizer, min=1.0)
+        pos_normalizer = positives.sum(1, keepdim=True).float() # 正样本数量
+        reg_weights /= torch.clamp(pos_normalizer, min=1.0) # 冗余
         cls_weights /= torch.clamp(pos_normalizer, min=1.0)
-        cls_targets = box_cls_labels * cared.type_as(box_cls_labels)
-        cls_targets = cls_targets.unsqueeze(dim=-1)
+        cls_targets = box_cls_labels * cared.type_as(box_cls_labels) # -1也变为0
+        cls_targets = cls_targets.unsqueeze(dim=-1) # 冗余
 
         cls_targets = cls_targets.squeeze(dim=-1)
         one_hot_targets = torch.zeros(
             *list(cls_targets.shape), self.num_class + 1, dtype=cls_preds.dtype, device=cls_targets.device
-        )
-        one_hot_targets.scatter_(-1, cls_targets.unsqueeze(dim=-1).long(), 1.0)
+        ) # one-hot-encode
+        one_hot_targets.scatter_(-1, cls_targets.unsqueeze(dim=-1).long(), 1.0) # 在one-hot最后一维填充1，cls_targets.unsqueeze(dim=-1).long()提供索引
         cls_preds = cls_preds.view(batch_size, -1, self.num_class)
-        one_hot_targets = one_hot_targets[..., 1:]
+        one_hot_targets = one_hot_targets[..., 1:] # 仅取出positive sample
         cls_loss_src = self.cls_loss_func(cls_preds, one_hot_targets, weights=cls_weights)  # [N, M]
-        cls_loss = cls_loss_src.sum() / batch_size
+        cls_loss = cls_loss_src.sum() / batch_size # 得到单帧loss
 
         cls_loss = cls_loss * self.model_cfg.LOSS_CONFIG.LOSS_WEIGHTS['cls_weight']
         tb_dict = {
@@ -147,15 +147,15 @@ class AnchorHeadTemplate(nn.Module):
     def get_direction_target(anchors, reg_targets, one_hot=True, dir_offset=0, num_bins=2):
         batch_size = reg_targets.shape[0]
         anchors = anchors.view(batch_size, -1, anchors.shape[-1])
-        rot_gt = reg_targets[..., 6] + anchors[..., 6]
-        offset_rot = common_utils.limit_period(rot_gt - dir_offset, 0, 2 * np.pi)
-        dir_cls_targets = torch.floor(offset_rot / (2 * np.pi / num_bins)).long()
-        dir_cls_targets = torch.clamp(dir_cls_targets, min=0, max=num_bins - 1)
+        rot_gt = reg_targets[..., 6] + anchors[..., 6] # 这里reg_targets是经过编码的，为gt和anchor的yaw角差值，这里加上anchor的yaw角，则得到了gt的原始偏航角
+        offset_rot = common_utils.limit_period(rot_gt - dir_offset, 0, 2 * np.pi) # 将rot_gt-dir_offset限制在0~2 * pi之间
+        dir_cls_targets = torch.floor(offset_rot / (2 * np.pi / num_bins)).long() # 除以(2*np.pi/num_bins)可以确定yaw落在哪个区间
+        dir_cls_targets = torch.clamp(dir_cls_targets, min=0, max=num_bins - 1) # num_bins代表了是多少个类别，这里是二分类
 
         if one_hot:
             dir_targets = torch.zeros(*list(dir_cls_targets.shape), num_bins, dtype=anchors.dtype,
                                       device=dir_cls_targets.device)
-            dir_targets.scatter_(-1, dir_cls_targets.unsqueeze(dim=-1).long(), 1.0)
+            dir_targets.scatter_(-1, dir_cls_targets.unsqueeze(dim=-1).long(), 1.0) # one-hot encoding
             dir_cls_targets = dir_targets
         return dir_cls_targets
 
@@ -169,7 +169,7 @@ class AnchorHeadTemplate(nn.Module):
         positives = box_cls_labels > 0
         reg_weights = positives.float()
         pos_normalizer = positives.sum(1, keepdim=True).float()
-        reg_weights /= torch.clamp(pos_normalizer, min=1.0)
+        reg_weights /= torch.clamp(pos_normalizer, min=1.0) # 正样本回归权重
 
         if isinstance(self.anchors, list):
             if self.use_multihead:
@@ -184,7 +184,7 @@ class AnchorHeadTemplate(nn.Module):
         box_preds = box_preds.view(batch_size, -1,
                                    box_preds.shape[-1] // self.num_anchors_per_location if not self.use_multihead else
                                    box_preds.shape[-1])
-        # sin(a - b) = sinacosb-cosasinb
+        # sin(a - b) = sinacosb-cosasinb 求yaw差值的正弦
         box_preds_sin, reg_targets_sin = self.add_sin_difference(box_preds, box_reg_targets)
         loc_loss_src = self.reg_loss_func(box_preds_sin, reg_targets_sin, weights=reg_weights)  # [N, M]
         loc_loss = loc_loss_src.sum() / batch_size
@@ -200,15 +200,15 @@ class AnchorHeadTemplate(nn.Module):
                 anchors, box_reg_targets,
                 dir_offset=self.model_cfg.DIR_OFFSET,
                 num_bins=self.model_cfg.NUM_DIR_BINS
-            )
+            ) # 生成角度回归目标，二分类
 
             dir_logits = box_dir_cls_preds.view(batch_size, -1, self.model_cfg.NUM_DIR_BINS)
-            weights = positives.type_as(dir_logits)
+            weights = positives.type_as(dir_logits) # 仅对正样本
             weights /= torch.clamp(weights.sum(-1, keepdim=True), min=1.0)
             dir_loss = self.dir_loss_func(dir_logits, dir_targets, weights=weights)
             dir_loss = dir_loss.sum() / batch_size
             dir_loss = dir_loss * self.model_cfg.LOSS_CONFIG.LOSS_WEIGHTS['dir_weight']
-            box_loss += dir_loss
+            box_loss += dir_loss # 将角度分类loss合并到box regression loss
             tb_dict['rpn_loss_dir'] = dir_loss.item()
 
         return box_loss, tb_dict
@@ -217,7 +217,7 @@ class AnchorHeadTemplate(nn.Module):
         cls_loss, tb_dict = self.get_cls_layer_loss()
         box_loss, tb_dict_box = self.get_box_reg_layer_loss()
         tb_dict.update(tb_dict_box)
-        rpn_loss = cls_loss + box_loss
+        rpn_loss = cls_loss + box_loss # 合并分类和回归损失
 
         tb_dict['rpn_loss'] = rpn_loss.item()
         return rpn_loss, tb_dict

@@ -55,7 +55,7 @@ class SigmoidFocalClassificationLoss(nn.Module):
         Returns:
             weighted_loss: (B, #anchors, #classes) float tensor after weighting.
         """
-        pred_sigmoid = torch.sigmoid(input)
+        pred_sigmoid = torch.sigmoid(input) # limit to 0~1
         alpha_weight = target * self.alpha + (1 - target) * (1 - self.alpha)
         pt = target * (1.0 - pred_sigmoid) + (1.0 - target) * pred_sigmoid
         focal_weight = alpha_weight * torch.pow(pt, self.gamma)
@@ -66,7 +66,7 @@ class SigmoidFocalClassificationLoss(nn.Module):
 
         if weights.shape.__len__() == 2 or \
                 (weights.shape.__len__() == 1 and target.shape.__len__() == 2):
-            weights = weights.unsqueeze(-1)
+            weights = weights.unsqueeze(-1) # 仅监督正负样本
 
         assert weights.shape.__len__() == loss.shape.__len__()
 
@@ -202,8 +202,9 @@ class WeightedCrossEntropyLoss(nn.Module):
             loss: (B, #anchors) float tensor.
                 Weighted cross entropy loss without reduction
         """
-        input = input.permute(0, 2, 1) # from (B, C, N) to (B, C)
+        input = input.permute(0, 2, 1) # from (B, C, N) to (B, N, C)
         target = target.argmax(dim=-1) # one-hot -> class index
+        # 自动使用 softmax 将 logits 转换为概率分布，再计算负对数似然损失（cross entropy loss）
         loss = F.cross_entropy(input, target, reduction='none') * weights
         return loss
 

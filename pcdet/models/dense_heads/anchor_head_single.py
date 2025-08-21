@@ -60,7 +60,7 @@ class AnchorHeadSingle(AnchorHeadTemplate):
         if self.training:
             targets_dict = self.assign_targets(
                 gt_boxes=data_dict['gt_boxes']
-            ) # 正负样本分配
+            ) # 正负样本分配，结果包含，每个anchor对应的label,对应的target_boxes(基于gt_boxes编码的)
             self.forward_ret_dict.update(targets_dict)
 
         if not self.training or self.predict_boxes_when_training:
