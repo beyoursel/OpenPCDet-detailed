@@ -22,8 +22,8 @@ def parse_config():
     parser = argparse.ArgumentParser(description='arg parser')
     parser.add_argument('--cfg_file', type=str, default=None, help='specify the config for training')
 
-    parser.add_argument('--batch_size', type=int, default=None, required=False, help='batch size for training')
-    parser.add_argument('--workers', type=int, default=4, help='number of workers for dataloader')
+    parser.add_argument('--batch_size', type=int, default=1, required=False, help='batch size for training')
+    parser.add_argument('--workers', type=int, default=0, help='number of workers for dataloader')
     parser.add_argument('--extra_tag', type=str, default='default', help='extra tag for this experiment')
     parser.add_argument('--ckpt', type=str, default=None, help='checkpoint to start from')
     parser.add_argument('--pretrained_model', type=str, default=None, help='pretrained_model')
@@ -39,7 +39,7 @@ def parse_config():
     parser.add_argument('--eval_all', action='store_true', default=False, help='whether to evaluate all checkpoints')
     parser.add_argument('--ckpt_dir', type=str, default=None, help='specify a ckpt directory to be evaluated if needed')
     parser.add_argument('--save_to_file', action='store_true', default=False, help='')
-    parser.add_argument('--infer_time', action='store_true', default=False, help='calculate inference latency')
+    parser.add_argument('--infer_time', action='store_true', default=True, help='calculate inference latency')
 
     args = parser.parse_args()
 
@@ -59,7 +59,7 @@ def eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id
     # load checkpoint
     model.load_params_from_file(filename=args.ckpt, logger=logger, to_cpu=dist_test, 
                                 pre_trained_path=args.pretrained_model)
-    model.cuda()
+    model.cuda() # 将模型放在gpu上
     
     # start evaluation
     eval_utils.eval_one_epoch(
@@ -139,7 +139,7 @@ def main():
     args, cfg = parse_config()
 
     if args.infer_time:
-        os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+        os.environ['CUDA_LAUNCH_BLOCKING'] = '1' # os.environ['CUDA_LAUNCH_BLOCKING'] = '1' 主要用于调试 CUDA 程序。它使 CUDA 操作变为同步执行，从而帮助开发者更容易定位错误。
 
     if args.launcher == 'none':
         dist_test = False
@@ -187,7 +187,7 @@ def main():
         logger.info('total_batch_size: %d' % (total_gpus * args.batch_size))
     for key, val in vars(args).items():
         logger.info('{:16} {}'.format(key, val))
-    log_config_to_file(cfg, logger=logger)
+    log_config_to_file(cfg, logger=logger) # 递归遍历cfg打印参数
 
     ckpt_dir = args.ckpt_dir if args.ckpt_dir is not None else output_dir / 'ckpt'
 
@@ -199,7 +199,7 @@ def main():
     )
 
     model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=test_set)
-    with torch.no_grad():
+    with torch.no_grad(): # 禁用梯度计算，节省内存，加速推理
         if args.eval_all:
             repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir, dist_test=dist_test)
         else:

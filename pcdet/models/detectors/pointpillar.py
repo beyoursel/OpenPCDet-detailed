@@ -18,7 +18,7 @@ class PointPillar(Detector3DTemplate):
             }
             return ret_dict, tb_dict, disp_dict
         else:
-            pred_dicts, recall_dicts = self.post_processing(batch_dict)
+            pred_dicts, recall_dicts = self.post_processing(batch_dict) # 后处理：nms、record recall
             return pred_dicts, recall_dicts
 
     def get_training_loss(self):

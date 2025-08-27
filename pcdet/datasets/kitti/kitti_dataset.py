@@ -328,13 +328,13 @@ class KittiDataset(DatasetTemplate):
 
         annos = []
         for index, box_dict in enumerate(pred_dicts):
-            frame_id = batch_dict['frame_id'][index]
+            frame_id = batch_dict['frame_id'][index] # 原始点云帧id
 
             single_pred_dict = generate_single_sample_dict(index, box_dict)
             single_pred_dict['frame_id'] = frame_id
             annos.append(single_pred_dict)
 
-            if output_path is not None:
+            if output_path is not None: # 将结果输入成kitti benchmark的格式
                 cur_det_file = output_path / ('%s.txt' % frame_id)
                 with open(cur_det_file, 'w') as f:
                     bbox = single_pred_dict['bbox']
@@ -358,7 +358,7 @@ class KittiDataset(DatasetTemplate):
         from .kitti_object_eval_python import eval as kitti_eval
 
         eval_det_annos = copy.deepcopy(det_annos)
-        eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.kitti_infos]
+        eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.kitti_infos] # gt annos
         ap_result_str, ap_dict = kitti_eval.get_official_eval_result(eval_gt_annos, eval_det_annos, class_names)
 
         return ap_result_str, ap_dict

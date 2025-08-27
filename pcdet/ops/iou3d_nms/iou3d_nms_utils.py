@@ -68,7 +68,7 @@ def boxes_iou3d_gpu(boxes_a, boxes_b):
 
     max_of_min = torch.max(boxes_a_height_min, boxes_b_height_min)
     min_of_max = torch.min(boxes_a_height_max, boxes_b_height_max)
-    overlaps_h = torch.clamp(min_of_max - max_of_min, min=0)
+    overlaps_h = torch.clamp(min_of_max - max_of_min, min=0) # 重叠的高度
 
     # 3d iou
     overlaps_3d = overlaps_bev * overlaps_h
@@ -76,7 +76,7 @@ def boxes_iou3d_gpu(boxes_a, boxes_b):
     vol_a = (boxes_a[:, 3] * boxes_a[:, 4] * boxes_a[:, 5]).view(-1, 1)
     vol_b = (boxes_b[:, 3] * boxes_b[:, 4] * boxes_b[:, 5]).view(1, -1)
 
-    iou3d = overlaps_3d / torch.clamp(vol_a + vol_b - overlaps_3d, min=1e-6)
+    iou3d = overlaps_3d / torch.clamp(vol_a + vol_b - overlaps_3d, min=1e-6) # iou计算公式
 
     return iou3d
 
@@ -125,14 +125,14 @@ def nms_gpu(boxes, scores, thresh, pre_maxsize=None, **kwargs):
     :return:
     """
     assert boxes.shape[1] == 7
-    order = scores.sort(0, descending=True)[1]
+    order = scores.sort(0, descending=True)[1] # 按照scores降序排列
     if pre_maxsize is not None:
         order = order[:pre_maxsize]
 
     boxes = boxes[order].contiguous()
     keep = torch.LongTensor(boxes.size(0))
-    num_out = iou3d_nms_cuda.nms_gpu(boxes, keep, thresh)
-    return order[keep[:num_out].cuda()].contiguous(), None
+    num_out = iou3d_nms_cuda.nms_gpu(boxes, keep, thresh) # num_out为nms返回的满足条件的结果数量
+    return order[keep[:num_out].cuda()].contiguous(), None # keep保存的是bbox的索引
 
 
 def nms_normal_gpu(boxes, scores, thresh, **kwargs):

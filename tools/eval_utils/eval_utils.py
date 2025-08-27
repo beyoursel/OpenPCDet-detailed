@@ -50,7 +50,7 @@ def eval_one_epoch(cfg, args, model, dataloader, epoch_id, logger, dist_test=Fal
                 device_ids=[local_rank],
                 broadcast_buffers=False
         )
-    model.eval()
+    model.eval() # 设置为推理模式，关闭dropout和batchnorm等操作
 
     if cfg.LOCAL_RANK == 0:
         progress_bar = tqdm.tqdm(total=len(dataloader), leave=True, desc='eval', dynamic_ncols=True)
@@ -62,7 +62,7 @@ def eval_one_epoch(cfg, args, model, dataloader, epoch_id, logger, dist_test=Fal
             start_time = time.time()
 
         with torch.no_grad():
-            pred_dicts, ret_dict = model(batch_dict)
+            pred_dicts, ret_dict = model(batch_dict) # ret_dict为recall record
 
         disp_dict = {}
 

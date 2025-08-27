@@ -47,7 +47,7 @@ class ResidualCoder(object):
         Args:
             box_encodings: (B, N, 7 + C) or (N, 7 + C) [x, y, z, dx, dy, dz, heading or *[cos, sin], ...]
             anchors: (B, N, 7 + C) or (N, 7 + C) [x, y, z, dx, dy, dz, heading, ...]
-
+        对应上面的encode_torch,在anchors的基础上解码出模型预测的bbox
         Returns:
 
         """

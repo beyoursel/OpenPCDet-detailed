@@ -249,20 +249,20 @@ class AnchorHeadTemplate(nn.Module):
             if not isinstance(cls_preds, list) else cls_preds
         batch_box_preds = box_preds.view(batch_size, num_anchors, -1) if not isinstance(box_preds, list) \
             else torch.cat(box_preds, dim=1).view(batch_size, num_anchors, -1)
-        batch_box_preds = self.box_coder.decode_torch(batch_box_preds, batch_anchors)
+        batch_box_preds = self.box_coder.decode_torch(batch_box_preds, batch_anchors) # 解码得到bbox
 
         if dir_cls_preds is not None:
-            dir_offset = self.model_cfg.DIR_OFFSET
+            dir_offset = self.model_cfg.DIR_OFFSET # 把 anchor 的角度坐标系整体偏移 π/4，目的是避免角度落在bin边界附近时分类不稳定
             dir_limit_offset = self.model_cfg.DIR_LIMIT_OFFSET
             dir_cls_preds = dir_cls_preds.view(batch_size, num_anchors, -1) if not isinstance(dir_cls_preds, list) \
                 else torch.cat(dir_cls_preds, dim=1).view(batch_size, num_anchors, -1)
-            dir_labels = torch.max(dir_cls_preds, dim=-1)[1]
+            dir_labels = torch.max(dir_cls_preds, dim=-1)[1] # dir_labels决定yaw角是在0~pi还是pi~2pi区间
 
-            period = (2 * np.pi / self.model_cfg.NUM_DIR_BINS)
+            period = (2 * np.pi / self.model_cfg.NUM_DIR_BINS) # 得到np.pi
             dir_rot = common_utils.limit_period(
                 batch_box_preds[..., 6] - dir_offset, dir_limit_offset, period
-            )
-            batch_box_preds[..., 6] = dir_rot + dir_offset + period * dir_labels.to(batch_box_preds.dtype)
+            ) # 将box预测的朝向角限制在0~np.pi之间
+            batch_box_preds[..., 6] = dir_rot + dir_offset + period * dir_labels.to(batch_box_preds.dtype) # period * dir_labels表示朝向角落入的分区
 
         if isinstance(self.box_coder, box_coder_utils.PreviousResidualDecoder):
             batch_box_preds[..., 6] = common_utils.limit_period(

@@ -5,23 +5,23 @@ from ...ops.iou3d_nms import iou3d_nms_utils
 
 def class_agnostic_nms(box_scores, box_preds, nms_config, score_thresh=None):
     src_box_scores = box_scores
-    if score_thresh is not None:
+    if score_thresh is not None: # 首先根据分类的置信度阈值筛选
         scores_mask = (box_scores >= score_thresh)
         box_scores = box_scores[scores_mask]
         box_preds = box_preds[scores_mask]
 
     selected = []
     if box_scores.shape[0] > 0:
-        box_scores_nms, indices = torch.topk(box_scores, k=min(nms_config.NMS_PRE_MAXSIZE, box_scores.shape[0]))
-        boxes_for_nms = box_preds[indices]
+        box_scores_nms, indices = torch.topk(box_scores, k=min(nms_config.NMS_PRE_MAXSIZE, box_scores.shape[0])) # 按照box_scores从大到小排列
+        boxes_for_nms = box_preds[indices] # 将box_preds也按照box_scores从大到小排列
         keep_idx, selected_scores = getattr(iou3d_nms_utils, nms_config.NMS_TYPE)(
                 boxes_for_nms[:, 0:7], box_scores_nms, nms_config.NMS_THRESH, **nms_config
         )
-        selected = indices[keep_idx[:nms_config.NMS_POST_MAXSIZE]]
+        selected = indices[keep_idx[:nms_config.NMS_POST_MAXSIZE]] # indices保存了box_preds的索引
 
     if score_thresh is not None:
-        original_idxs = scores_mask.nonzero().view(-1)
-        selected = original_idxs[selected]
+        original_idxs = scores_mask.nonzero().view(-1) # 获得经过score_mask过滤之后的src_box索引，按原来的顺序
+        selected = original_idxs[selected] # 取出nms之后的src_box索引
     return selected, src_box_scores[selected]
 
 

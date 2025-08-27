@@ -214,7 +214,7 @@ class Detector3DTemplate(nn.Module):
                 assert cls_preds.shape[1] in [1, self.num_class]
 
                 if not batch_dict['cls_preds_normalized']:
-                    cls_preds = torch.sigmoid(cls_preds)
+                    cls_preds = torch.sigmoid(cls_preds) # 归一化分类
             else:
                 cls_preds = [x[batch_mask] for x in batch_dict['batch_cls_preds']]
                 src_cls_preds = cls_preds
@@ -258,11 +258,11 @@ class Detector3DTemplate(nn.Module):
                     box_scores=cls_preds, box_preds=box_preds,
                     nms_config=post_process_cfg.NMS_CONFIG,
                     score_thresh=post_process_cfg.SCORE_THRESH
-                )
+                ) # 不区分类别，所有类别的bbox放在一起nms
 
                 if post_process_cfg.OUTPUT_RAW_SCORE:
                     max_cls_preds, _ = torch.max(src_cls_preds, dim=-1)
-                    selected_scores = max_cls_preds[selected]
+                    selected_scores = max_cls_preds[selected] # not normalized
 
                 final_scores = selected_scores
                 final_labels = label_preds[selected]
@@ -272,7 +272,7 @@ class Detector3DTemplate(nn.Module):
                 box_preds=final_boxes if 'rois' not in batch_dict else src_box_preds,
                 recall_dict=recall_dict, batch_index=index, data_dict=batch_dict,
                 thresh_list=post_process_cfg.RECALL_THRESH_LIST
-            )        
+            ) # 记录每个recall_thresh下能够recall的gt数量
 
             record_dict = {
                 'pred_boxes': final_boxes,
@@ -289,7 +289,7 @@ class Detector3DTemplate(nn.Module):
             return recall_dict
 
         rois = data_dict['rois'][batch_index] if 'rois' in data_dict else None
-        gt_boxes = data_dict['gt_boxes'][batch_index]
+        gt_boxes = data_dict['gt_boxes'][batch_index] # 最后一个维度是类别
 
         if recall_dict.__len__() == 0:
             recall_dict = {'gt': 0}
@@ -300,7 +300,7 @@ class Detector3DTemplate(nn.Module):
         cur_gt = gt_boxes
         k = cur_gt.__len__() - 1
         while k >= 0 and cur_gt[k].sum() == 0:
-            k -= 1
+            k -= 1 # 考虑到有的gt仅是为了保持内存对齐
         cur_gt = cur_gt[:k + 1]
 
         if cur_gt.shape[0] > 0:
@@ -316,7 +316,7 @@ class Detector3DTemplate(nn.Module):
                 if iou3d_rcnn.shape[0] == 0:
                     recall_dict['rcnn_%s' % str(cur_thresh)] += 0
                 else:
-                    rcnn_recalled = (iou3d_rcnn.max(dim=0)[0] > cur_thresh).sum().item()
+                    rcnn_recalled = (iou3d_rcnn.max(dim=0)[0] > cur_thresh).sum().item() # iou满足cur_thesh的gt数量
                     recall_dict['rcnn_%s' % str(cur_thresh)] += rcnn_recalled
                 if rois is not None:
                     roi_recalled = (iou3d_roi.max(dim=0)[0] > cur_thresh).sum().item()
@@ -352,9 +352,9 @@ class Detector3DTemplate(nn.Module):
                 # logger.info('Update weight %s: %s' % (key, str(val.shape)))
 
         if strict:
-            self.load_state_dict(update_model_state)
+            self.load_state_dict(update_model_state) # 要求参数名称必须完全匹配
         else:
-            state_dict.update(update_model_state)
+            state_dict.update(update_model_state) # update_model_state中的参数覆盖state_dict中的参数
             self.load_state_dict(state_dict)
         return state_dict, update_model_state
 
@@ -364,7 +364,7 @@ class Detector3DTemplate(nn.Module):
 
         logger.info('==> Loading parameters from checkpoint %s to %s' % (filename, 'CPU' if to_cpu else 'GPU'))
         loc_type = torch.device('cpu') if to_cpu else None
-        checkpoint = torch.load(filename, map_location=loc_type)
+        checkpoint = torch.load(filename, map_location=loc_type) # 当 map_location=None 时，PyTorch 会自动根据存储文件中的设备信息来加载数据
         model_state_disk = checkpoint['model_state']
         if not pre_trained_path is None:
             pretrain_checkpoint = torch.load(pre_trained_path, map_location=loc_type)

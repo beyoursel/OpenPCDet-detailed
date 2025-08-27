@@ -24,5 +24,3 @@ annotations['location'] = np.concatenate([obj.loc.reshape(1, 3) for obj in obj_l
 • Camera: x = right, y = down, z = forward
 • Velodyne: x = forward, y = left, z = up
 • GPS/IMU: x = forward, y = left, z = up
-
-## numpy的广播机制

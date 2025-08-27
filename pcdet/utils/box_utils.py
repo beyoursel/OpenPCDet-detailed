@@ -207,15 +207,15 @@ def boxes3d_lidar_to_kitti_camera(boxes3d_lidar, calib):
     :return:
         boxes3d_camera: (N, 7) [x, y, z, l, h, w, r] in rect camera coords
     """
-    boxes3d_lidar_copy = copy.deepcopy(boxes3d_lidar)
+    boxes3d_lidar_copy = copy.deepcopy(boxes3d_lidar) # deepcopy
     xyz_lidar = boxes3d_lidar_copy[:, 0:3]
     l, w, h = boxes3d_lidar_copy[:, 3:4], boxes3d_lidar_copy[:, 4:5], boxes3d_lidar_copy[:, 5:6]
     r = boxes3d_lidar_copy[:, 6:7]
 
-    xyz_lidar[:, 2] -= h.reshape(-1) / 2
+    xyz_lidar[:, 2] -= h.reshape(-1) / 2 # bottom center
     xyz_cam = calib.lidar_to_rect(xyz_lidar)
     # xyz_cam[:, 1] += h.reshape(-1) / 2
-    r = -r - np.pi / 2
+    r = -r - np.pi / 2 # camera和Lidar系下yaw角对应的转换关系
     return np.concatenate([xyz_cam, l, h, w, r], axis=-1)
 
 
@@ -251,7 +251,7 @@ def boxes3d_to_corners3d_kitti_camera(boxes3d, bottom_center=True):
 
     temp_corners = np.concatenate((x_corners.reshape(-1, 8, 1), y_corners.reshape(-1, 8, 1),
                                    z_corners.reshape(-1, 8, 1)), axis=2)  # (N, 8, 3)
-    rotated_corners = np.matmul(temp_corners, R_list)  # (N, 8, 3)
+    rotated_corners = np.matmul(temp_corners, R_list)  # (N, 8, 3) 批量矩阵乘法
     x_corners, y_corners, z_corners = rotated_corners[:, :, 0], rotated_corners[:, :, 1], rotated_corners[:, :, 2]
 
     x_loc, y_loc, z_loc = boxes3d[:, 0], boxes3d[:, 1], boxes3d[:, 2]
@@ -271,8 +271,9 @@ def boxes3d_kitti_camera_to_imageboxes(boxes3d, calib, image_shape=None):
     :param calib:
     :return:
         box_2d_preds: (N, 4) [x1, y1, x2, y2]
+    uv frame: u+->right, v+->down
     """
-    corners3d = boxes3d_to_corners3d_kitti_camera(boxes3d)
+    corners3d = boxes3d_to_corners3d_kitti_camera(boxes3d) # 获得每个bbox对应的camera系下的8个角点
     pts_img, _ = calib.rect_to_img(corners3d.reshape(-1, 3))
     corners_in_image = pts_img.reshape(-1, 8, 2)
 
@@ -280,8 +281,8 @@ def boxes3d_kitti_camera_to_imageboxes(boxes3d, calib, image_shape=None):
     max_uv = np.max(corners_in_image, axis=1)  # (N, 2)
     boxes2d_image = np.concatenate([min_uv, max_uv], axis=1)
     if image_shape is not None:
-        boxes2d_image[:, 0] = np.clip(boxes2d_image[:, 0], a_min=0, a_max=image_shape[1] - 1)
-        boxes2d_image[:, 1] = np.clip(boxes2d_image[:, 1], a_min=0, a_max=image_shape[0] - 1)
+        boxes2d_image[:, 0] = np.clip(boxes2d_image[:, 0], a_min=0, a_max=image_shape[1] - 1) # image_shape[1] indicate the columns of image pixels
+        boxes2d_image[:, 1] = np.clip(boxes2d_image[:, 1], a_min=0, a_max=image_shape[0] - 1) # image_shape[0] indicate the rows of image pixels
         boxes2d_image[:, 2] = np.clip(boxes2d_image[:, 2], a_min=0, a_max=image_shape[1] - 1)
         boxes2d_image[:, 3] = np.clip(boxes2d_image[:, 3], a_min=0, a_max=image_shape[0] - 1)
 
