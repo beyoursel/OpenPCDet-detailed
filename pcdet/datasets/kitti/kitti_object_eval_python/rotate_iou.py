@@ -249,7 +249,7 @@ def inter(rbbox1, rbbox2):
 def devRotateIoUEval(rbox1, rbox2, criterion=-1):
     area1 = rbox1[2] * rbox1[3]
     area2 = rbox2[2] * rbox2[3]
-    area_inter = inter(rbox1, rbox2)
+    area_inter = inter(rbox1, rbox2) # 关键在于求旋转bbox之间的union
     if criterion == -1:
         return area_inter / (area1 + area2 - area_inter)
     elif criterion == 0:

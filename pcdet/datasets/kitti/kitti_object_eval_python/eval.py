@@ -6,7 +6,7 @@ import numpy as np
 from .rotate_iou import rotate_iou_gpu_eval
 
 
-@numba.jit
+@numba.jit(nopython=True)
 def get_thresholds(scores: np.ndarray, num_gt, num_sample_pts=41):
     scores.sort() # 升序
     scores = scores[::-1] # 降序
@@ -128,12 +128,12 @@ def d3_box_overlap_kernel(boxes, qboxes, rinc, criterion=-1):
                 # iw = (min(boxes[i, 1] + boxes[i, 4], qboxes[j, 1] +
                 #         qboxes[j, 4]) - max(boxes[i, 1], qboxes[j, 1]))
                 iw = (min(boxes[i, 1], qboxes[j, 1]) - max(
-                    boxes[i, 1] - boxes[i, 4], qboxes[j, 1] - qboxes[j, 4]))
+                    boxes[i, 1] - boxes[i, 4], qboxes[j, 1] - qboxes[j, 4])) # 考虑到y+向下，iw就是y向gt和det之间的overlap
 
                 if iw > 0:
-                    area1 = boxes[i, 3] * boxes[i, 4] * boxes[i, 5]
+                    area1 = boxes[i, 3] * boxes[i, 4] * boxes[i, 5] # 3d volume
                     area2 = qboxes[j, 3] * qboxes[j, 4] * qboxes[j, 5]
-                    inc = iw * rinc[i, j]
+                    inc = iw * rinc[i, j] # bev上重叠面积乘以高度上的重叠面积，即为union volume
                     if criterion == -1:
                         ua = (area1 + area2 - inc)
                     elif criterion == 0:
@@ -149,7 +149,7 @@ def d3_box_overlap_kernel(boxes, qboxes, rinc, criterion=-1):
 
 def d3_box_overlap(boxes, qboxes, criterion=-1):
     rinc = rotate_iou_gpu_eval(boxes[:, [0, 2, 3, 5, 6]],
-                               qboxes[:, [0, 2, 3, 5, 6]], 2)
+                               qboxes[:, [0, 2, 3, 5, 6]], 2) # return bev union
     d3_box_overlap_kernel(boxes, qboxes, rinc, criterion)
     return rinc
 
@@ -363,7 +363,7 @@ def calculate_iou_partly(gt_annos, dt_annos, metric, num_parts=50):
             overlap_part = image_box_overlap(gt_boxes, dt_boxes) # 批量计算iou
         elif metric == 1:
             loc = np.concatenate(
-                [a["location"][:, [0, 2]] for a in gt_annos_part], 0)
+                [a["location"][:, [0, 2]] for a in gt_annos_part], 0) # bev in camera frame: x,z
             dims = np.concatenate(
                 [a["dimensions"][:, [0, 2]] for a in gt_annos_part], 0)
             rots = np.concatenate([a["rotation_y"] for a in gt_annos_part], 0)
@@ -375,7 +375,7 @@ def calculate_iou_partly(gt_annos, dt_annos, metric, num_parts=50):
                 [a["dimensions"][:, [0, 2]] for a in dt_annos_part], 0)
             rots = np.concatenate([a["rotation_y"] for a in dt_annos_part], 0)
             dt_boxes = np.concatenate(
-                [loc, dims, rots[..., np.newaxis]], axis=1)
+                [loc, dims, rots[..., np.newaxis]], axis=1) # detection bbox in image bev
             overlap_part = bev_box_overlap(gt_boxes, dt_boxes).astype(
                 np.float64)
         elif metric == 2:
@@ -470,7 +470,7 @@ def eval_class(gt_annos,
     num_examples = len(gt_annos)
     split_parts = get_split_parts(num_examples, num_parts)
 
-    rets = calculate_iou_partly(dt_annos, gt_annos, metric, num_parts) # 分块计算iou
+    rets = calculate_iou_partly(dt_annos, gt_annos, metric, num_parts) # 分块计算iou, 不同的metric（bbox、bev、3d）
     overlaps, parted_overlaps, total_dt_num, total_gt_num = rets # overlaps为总的iou，而parted为分块的
     N_SAMPLE_PTS = 41
     num_minoverlap = len(min_overlaps)
@@ -555,7 +555,7 @@ def eval_class(gt_annos,
 
 def get_mAP(prec):
     sums = 0
-    for i in range(0, prec.shape[-1], 4):
+    for i in range(0, prec.shape[-1], 4): # 41个recall间隔4采样一个
         sums = sums + prec[..., i]
     return sums / 11 * 100
 
@@ -585,10 +585,10 @@ def do_eval(gt_annos,
     # min_overlaps: [num_minoverlap, metric, num_class]
     difficultys = [0, 1, 2]
     ret = eval_class(gt_annos, dt_annos, current_classes, difficultys, 0,
-                     min_overlaps, compute_aos)
+                     min_overlaps, compute_aos) # metric 0 is 2d image iou
     # ret: [num_class, num_diff, num_minoverlap, num_sample_points]
-    mAP_bbox = get_mAP(ret["precision"])
-    mAP_bbox_R40 = get_mAP_R40(ret["precision"])
+    mAP_bbox = get_mAP(ret["precision"]) # (3,3,2) R11
+    mAP_bbox_R40 = get_mAP_R40(ret["precision"]) # 计算AP时求41个recall下的precision的均值
 
     if PR_detail_dict is not None:
         PR_detail_dict['bbox'] = ret['precision']
@@ -602,7 +602,7 @@ def do_eval(gt_annos,
             PR_detail_dict['aos'] = ret['orientation']
 
     ret = eval_class(gt_annos, dt_annos, current_classes, difficultys, 1,
-                     min_overlaps)
+                     min_overlaps) # metric 1 is bev
     mAP_bev = get_mAP(ret["precision"])
     mAP_bev_R40 = get_mAP_R40(ret["precision"])
 
@@ -610,7 +610,7 @@ def do_eval(gt_annos,
         PR_detail_dict['bev'] = ret['precision']
 
     ret = eval_class(gt_annos, dt_annos, current_classes, difficultys, 2,
-                     min_overlaps)
+                     min_overlaps) # metric 2 is 3d iou
     mAP_3d = get_mAP(ret["precision"])
     mAP_3d_R40 = get_mAP_R40(ret["precision"])
     if PR_detail_dict is not None:
@@ -743,7 +743,7 @@ def get_official_eval_result(gt_annos, dt_annos, current_classes, PR_detail_dict
                 ret_dict['%s_image/moderate_R40' % class_to_name[curcls]] = mAPbbox_R40[j, 1, 0]
                 ret_dict['%s_image/hard_R40' % class_to_name[curcls]] = mAPbbox_R40[j, 2, 0]
 
-    return result, ret_dict
+    return result, ret_dict # ret_dict中保存的是kitti官方评价指标
 
 
 def get_coco_eval_result(gt_annos, dt_annos, current_classes):
