@@ -18,9 +18,9 @@ class HeightCompression(nn.Module):
 
         """
         encoded_spconv_tensor = batch_dict['encoded_spconv_tensor']
-        spatial_features = encoded_spconv_tensor.dense()
+        spatial_features = encoded_spconv_tensor.dense() # shape: [batch_size, channels, D, H, W]
         N, C, D, H, W = spatial_features.shape
-        spatial_features = spatial_features.view(N, C * D, H, W)
+        spatial_features = spatial_features.view(N, C * D, H, W) # merge z-axis和channel
         batch_dict['spatial_features'] = spatial_features
         batch_dict['spatial_features_stride'] = batch_dict['encoded_spconv_tensor_stride']
         return batch_dict

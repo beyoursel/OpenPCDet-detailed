@@ -22,10 +22,10 @@ class MeanVFE(VFETemplate):
         Returns:
             vfe_features: (num_voxels, C)
         """
-        voxel_features, voxel_num_points = batch_dict['voxels'], batch_dict['voxel_num_points']
-        points_mean = voxel_features[:, :, :].sum(dim=1, keepdim=False)
+        voxel_features, voxel_num_points = batch_dict['voxels'], batch_dict['voxel_num_points'] # voxel_features: [max_voxels, max_points_per_voxel, num_feature]
+        points_mean = voxel_features[:, :, :].sum(dim=1, keepdim=False) # dim=1 reduce
         normalizer = torch.clamp_min(voxel_num_points.view(-1, 1), min=1.0).type_as(voxel_features)
-        points_mean = points_mean / normalizer
+        points_mean = points_mean / normalizer # 计算每个voxel的均值特征
         batch_dict['voxel_features'] = points_mean.contiguous()
 
         return batch_dict
