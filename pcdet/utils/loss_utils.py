@@ -265,7 +265,7 @@ def compute_fg_mask(gt_boxes2d, shape, downsample_factor=1, device=torch.device(
 
 
 def neg_loss_cornernet(pred, gt, mask=None):
-    """
+    """ combine cross entropy loss and focal loss
     Refer to https://github.com/tianweiy/CenterPoint.
     Modified focal loss. Exactly the same as CornerNet. Runs faster and costs a little bit more memory
     Args:
@@ -274,14 +274,14 @@ def neg_loss_cornernet(pred, gt, mask=None):
         mask: (batch x h x w)
     Returns:
     """
-    pos_inds = gt.eq(1).float()
-    neg_inds = gt.lt(1).float()
+    pos_inds = gt.eq(1).float() # equals 1
+    neg_inds = gt.lt(1).float() # less than 1
 
-    neg_weights = torch.pow(1 - gt, 4)
+    neg_weights = torch.pow(1 - gt, 4) # beta=4, reduce the weight of negative samples
 
     loss = 0
 
-    pos_loss = torch.log(pred) * torch.pow(1 - pred, 2) * pos_inds
+    pos_loss = torch.log(pred) * torch.pow(1 - pred, 2) * pos_inds # penalize the easy sample 
     neg_loss = torch.log(1 - pred) * torch.pow(pred, 2) * neg_weights * neg_inds
 
     if mask is not None:
@@ -389,8 +389,8 @@ def _gather_feat(feat, ind, mask=None):
 
 
 def _transpose_and_gather_feat(feat, ind):
-    feat = feat.permute(0, 2, 3, 1).contiguous()
-    feat = feat.view(feat.size(0), -1, feat.size(3))
+    feat = feat.permute(0, 2, 3, 1).contiguous() # [batch_size, h, w, c]
+    feat = feat.view(feat.size(0), -1, feat.size(3)) # [batch_size, h*w, c]
     feat = _gather_feat(feat, ind)
     return feat
 
@@ -415,7 +415,7 @@ class RegLossCenterNet(nn.Module):
         if ind is None:
             pred = output
         else:
-            pred = _transpose_and_gather_feat(output, ind)
+            pred = _transpose_and_gather_feat(output, ind) # index from feature map 
         loss = _reg_loss(pred, target, mask)
         return loss
 

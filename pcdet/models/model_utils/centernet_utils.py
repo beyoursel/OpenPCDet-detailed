@@ -8,39 +8,60 @@ import numba
 
 def gaussian_radius(height, width, min_overlap=0.5):
     """
-    Args:
+    Args: 高斯半径决定了目标对周围区域的影响范围
         height: (N)
         width: (N)
         min_overlap:
     Returns:
+    参考https://zhuanlan.zhihu.com/p/96856635
+    """
+    # 预测框两个角点在GT框的两个角点以r为半径的圆内，如何确定半径r，保证预测框与真值框的IOU大于一个阈值
+    """
+    1.一角点在真值框内,一角点在真值框外
+    最小IOU在预测框两个角点分别和和半径r的圆相外切和相内切时取得(例如可以固定某一角点在x方向不变,变动y方向观察相交、相并面积的变化情况)
+    因此我们只需要考虑“预测的框和GTbox两个角点以r为半径的圆一个边内切,一个边外切
+    min_overlap =(h-r)*(w-r)/(2*h*w-(h-r)*(w-r)) --> r
+    整理为r的一元二次方程: r^2 - (h+w)*r + (1-min_overlap)*h*w / (1+min_overlap) =0
     """
     a1 = 1
     b1 = (height + width)
     c1 = width * height * (1 - min_overlap) / (1 + min_overlap)
     sq1 = (b1 ** 2 - 4 * a1 * c1).sqrt()
-    r1 = (b1 + sq1) / 2
+    r1 = (b1 + sq1) / 2 # cornerNet修改为r1  = (b1 - sq1) / (2 * a1)
 
+    """
+    2.两角点均在真值框内
+    最小IOU在预测框和半径r圆相切获取
+    min_overlap =(h-2*r)*(w-2*r)/(h*w) --> r
+    整理为r的一元二次方程: 4*r^2 - 2*(h+w)*r + (1-min_overlap)*h*w =0
+    """
     a2 = 4
     b2 = 2 * (height + width)
     c2 = (1 - min_overlap) * width * height
     sq2 = (b2 ** 2 - 4 * a2 * c2).sqrt()
-    r2 = (b2 + sq2) / 2
+    r2 = (b2 + sq2) / 2 # cornernet修改为r2  = (b2 - sq2) / (2 * a2)
 
+    """
+    3.两角点均在真值框外
+    最小IOU在预测框和半径r相外切时取得,只需要考虑 预测的框和GTbox两个角点以r为半径的圆外切
+    min_overlap =(h*w)*(w+2*r)/(h+2*r) --> r
+    整理为r的一元二次方程: 4*min_overlap*r^2 + 2*min_overlap*(h+w)*r + (min_overlap-1)*h*w =0
+    """
     a3 = 4 * min_overlap
     b3 = -2 * min_overlap * (height + width)
     c3 = (min_overlap - 1) * width * height
     sq3 = (b3 ** 2 - 4 * a3 * c3).sqrt()
-    r3 = (b3 + sq3) / 2
+    r3 = (b3 + sq3) / 2 # cornernet修改为 r3  = (b3 + sq3) / (2 * a3)
     ret = torch.min(torch.min(r1, r2), r3)
     return ret
 
 
 def gaussian2D(shape, sigma=1):
-    m, n = [(ss - 1.) / 2. for ss in shape]
+    m, n = [(ss - 1.) / 2. for ss in shape] # get radius
     y, x = np.ogrid[-m:m + 1, -n:n + 1]
 
     h = np.exp(-(x * x + y * y) / (2 * sigma * sigma))
-    h[h < np.finfo(h.dtype).eps * h.max()] = 0
+    h[h < np.finfo(h.dtype).eps * h.max()] = 0 # h.max()=1, 若gaussian2d内的值过小，则设置为0
     return h
 
 
@@ -50,22 +71,22 @@ def draw_gaussian_to_heatmap(heatmap, center, radius, k=1, valid_mask=None):
 
     x, y = int(center[0]), int(center[1])
 
-    height, width = heatmap.shape[0:2]
+    height, width = heatmap.shape[0:2] # heatmap shape
 
-    left, right = min(x, radius), min(width - x, radius + 1)
+    left, right = min(x, radius), min(width - x, radius + 1) # 限制高斯渲染不超过feature map的边界，radius+1考虑到索引时最右侧取不到
     top, bottom = min(y, radius), min(height - y, radius + 1)
 
-    masked_heatmap = heatmap[y - top:y + bottom, x - left:x + right]
+    masked_heatmap = heatmap[y - top:y + bottom, x - left:x + right] # 需要渲染的局部heatmap
     masked_gaussian = torch.from_numpy(
         gaussian[radius - top:radius + bottom, radius - left:radius + right]
-    ).to(heatmap.device).float()
+    ).to(heatmap.device).float() # 赋值
 
     if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:  # TODO debug
         if valid_mask is not None:
             cur_valid_mask = valid_mask[y - top:y + bottom, x - left:x + right]
             masked_gaussian = masked_gaussian * cur_valid_mask.float()
-
-        torch.max(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
+        # 下面k=1相当于没有变化
+        torch.max(masked_heatmap, masked_gaussian * k, out=masked_heatmap) # 比较masked_heatmap和masked_gaussian * k对应位置的值，取最大值作为输出
     return heatmap
 
 
@@ -136,8 +157,8 @@ def _circle_nms(boxes, min_radius, post_max_size=83):
 
 def _gather_feat(feat, ind, mask=None):
     dim = feat.size(2)
-    ind = ind.unsqueeze(2).expand(ind.size(0), ind.size(1), dim)
-    feat = feat.gather(1, ind)
+    ind = ind.unsqueeze(2).expand(ind.size(0), ind.size(1), dim) # 扩展ind的最后一个维度和feat一致
+    feat = feat.gather(1, ind) # 在第二维度进行索引，输出的shape和ind一致，out[i][j][k] = feat[i][ind[i][j][k]][k]
     if mask is not None:
         mask = mask.unsqueeze(2).expand_as(feat)
         feat = feat[mask]
@@ -146,26 +167,26 @@ def _gather_feat(feat, ind, mask=None):
 
 
 def _transpose_and_gather_feat(feat, ind):
-    feat = feat.permute(0, 2, 3, 1).contiguous()
-    feat = feat.view(feat.size(0), -1, feat.size(3))
-    feat = _gather_feat(feat, ind)
+    feat = feat.permute(0, 2, 3, 1).contiguous() # 2, 3为feature map维度，1为特征维数
+    feat = feat.view(feat.size(0), -1, feat.size(3)) # 展平feature map
+    feat = _gather_feat(feat, ind) # ind也是feature map展平后的索引
     return feat
 
 
 def _topk(scores, K=40):
     batch, num_class, height, width = scores.size()
-
-    topk_scores, topk_inds = torch.topk(scores.flatten(2, 3), K)
+    # topk_scores为每个batch和每个channel前K个最大值，topk_inds为每个batch在展平维度上的索引位置
+    topk_scores, topk_inds = torch.topk(scores.flatten(2, 3), K) # 将2,3维度展平, 即feature map的h, w维度
 
     topk_inds = topk_inds % (height * width)
-    topk_ys = (topk_inds // width).float()
+    topk_ys = (topk_inds // width).float() # 还原feature map上的位置
     topk_xs = (topk_inds % width).int().float()
 
-    topk_score, topk_ind = torch.topk(topk_scores.view(batch, -1), K)
-    topk_classes = (topk_ind // K).int()
-    topk_inds = _gather_feat(topk_inds.view(batch, -1, 1), topk_ind).view(batch, K)
-    topk_ys = _gather_feat(topk_ys.view(batch, -1, 1), topk_ind).view(batch, K)
-    topk_xs = _gather_feat(topk_xs.view(batch, -1, 1), topk_ind).view(batch, K)
+    topk_score, topk_ind = torch.topk(topk_scores.view(batch, -1), K) # 所有类别中(num_class * K)选取topk
+    topk_classes = (topk_ind // K).int() # 得到class id
+    topk_inds = _gather_feat(topk_inds.view(batch, -1, 1), topk_ind).view(batch, K) # 得到每个batch的topk在feature map上flatten的索引
+    topk_ys = _gather_feat(topk_ys.view(batch, -1, 1), topk_ind).view(batch, K) # 获得在feature map上对应的y坐标
+    topk_xs = _gather_feat(topk_xs.view(batch, -1, 1), topk_ind).view(batch, K) # 获得在feature map上的x坐标
 
     return topk_score, topk_inds, topk_classes, topk_ys, topk_xs
 
@@ -180,18 +201,18 @@ def decode_bbox_from_heatmap(heatmap, rot_cos, rot_sin, center, center_z, dim,
         assert False, 'not checked yet'
         heatmap = _nms(heatmap)
 
-    scores, inds, class_ids, ys, xs = _topk(heatmap, K=K)
+    scores, inds, class_ids, ys, xs = _topk(heatmap, K=K) # select topk
     center = _transpose_and_gather_feat(center, inds).view(batch_size, K, 2)
     rot_sin = _transpose_and_gather_feat(rot_sin, inds).view(batch_size, K, 1)
     rot_cos = _transpose_and_gather_feat(rot_cos, inds).view(batch_size, K, 1)
     center_z = _transpose_and_gather_feat(center_z, inds).view(batch_size, K, 1)
     dim = _transpose_and_gather_feat(dim, inds).view(batch_size, K, 3)
 
-    angle = torch.atan2(rot_sin, rot_cos)
-    xs = xs.view(batch_size, K, 1) + center[:, :, 0:1]
+    angle = torch.atan2(rot_sin, rot_cos) # 单独的sin或cos无法唯一确定角度, atan2的输出在[-pi, pi]之间连续
+    xs = xs.view(batch_size, K, 1) + center[:, :, 0:1] # xs为整数部分，center为小数部分
     ys = ys.view(batch_size, K, 1) + center[:, :, 1:2]
 
-    xs = xs * feature_map_stride * voxel_size[0] + point_cloud_range[0]
+    xs = xs * feature_map_stride * voxel_size[0] + point_cloud_range[0] # decoder到实际世界坐标
     ys = ys * feature_map_stride * voxel_size[1] + point_cloud_range[1]
 
     box_part_list = [xs, ys, center_z, dim, angle]
@@ -208,10 +229,10 @@ def decode_bbox_from_heatmap(heatmap, rot_cos, rot_sin, center, center_z, dim,
 
     assert post_center_limit_range is not None
     mask = (final_box_preds[..., :3] >= post_center_limit_range[:3]).all(2)
-    mask &= (final_box_preds[..., :3] <= post_center_limit_range[3:]).all(2)
+    mask &= (final_box_preds[..., :3] <= post_center_limit_range[3:]).all(2) # 仅输出在post_center_limit_range内的目标
 
     if score_thresh is not None:
-        mask &= (final_scores > score_thresh)
+        mask &= (final_scores > score_thresh) # 输出满足score_thresh的目标
 
     ret_pred_dicts = []
     for k in range(batch_size):

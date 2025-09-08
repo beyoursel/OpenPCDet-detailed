@@ -14,9 +14,9 @@ class SeparateHead(nn.Module):
         super().__init__()
         self.sep_head_dict = sep_head_dict
 
-        for cur_name in self.sep_head_dict:
-            output_channels = self.sep_head_dict[cur_name]['out_channels']
-            num_conv = self.sep_head_dict[cur_name]['num_conv']
+        for cur_name in self.sep_head_dict: # 遍历每个key
+            output_channels = self.sep_head_dict[cur_name]['out_channels'] # 预测的属性所需的通道数量
+            num_conv = self.sep_head_dict[cur_name]['num_conv'] # sub-head的卷积数量
 
             fc_list = []
             for k in range(num_conv - 1):
@@ -26,22 +26,22 @@ class SeparateHead(nn.Module):
                     nn.ReLU()
                 ))
             fc_list.append(nn.Conv2d(input_channels, output_channels, kernel_size=3, stride=1, padding=1, bias=True))
-            fc = nn.Sequential(*fc_list)
+            fc = nn.Sequential(*fc_list) # 这里的*表示解包，将fc_list中的元素依次传递给nn.Sequential()
             if 'hm' in cur_name:
-                fc[-1].bias.data.fill_(init_bias)
+                fc[-1].bias.data.fill_(init_bias) # 在训练开始时让模型的预测尽可能接近于零，从而避免过度激活
             else:
-                for m in fc.modules():
+                for m in fc.modules(): # 参数初始化
                     if isinstance(m, nn.Conv2d):
-                        kaiming_normal_(m.weight.data)
+                        kaiming_normal_(m.weight.data) # from torch.nn.init
                         if hasattr(m, "bias") and m.bias is not None:
                             nn.init.constant_(m.bias, 0)
 
-            self.__setattr__(cur_name, fc)
+            self.__setattr__(cur_name, fc) # 将fc注册为self.cur_name，后续调用fc，可以直接使用self.cur_name(x)
 
     def forward(self, x):
         ret_dict = {}
         for cur_name in self.sep_head_dict:
-            ret_dict[cur_name] = self.__getattr__(cur_name)(x)
+            ret_dict[cur_name] = self.__getattr__(cur_name)(x) # 这里的self.__getattr__()和self.__setattr__()对应
 
         return ret_dict
 
@@ -59,9 +59,9 @@ class CenterHead(nn.Module):
 
         self.class_names = class_names
         self.class_names_each_head = []
-        self.class_id_mapping_each_head = []
+        self.class_id_mapping_each_head = [] # str to id
 
-        for cur_class_names in self.model_cfg.CLASS_NAMES_EACH_HEAD:
+        for cur_class_names in self.model_cfg.CLASS_NAMES_EACH_HEAD: # support multi-head
             self.class_names_each_head.append([x for x in cur_class_names if x in class_names])
             cur_class_id_mapping = torch.from_numpy(np.array(
                 [self.class_names.index(x) for x in cur_class_names if x in class_names]
@@ -79,13 +79,13 @@ class CenterHead(nn.Module):
             ),
             norm_func(self.model_cfg.SHARED_CONV_CHANNEL),
             nn.ReLU(),
-        )
+        ) # shared conv
 
         self.heads_list = nn.ModuleList()
         self.separate_head_cfg = self.model_cfg.SEPARATE_HEAD_CFG
         for idx, cur_class_names in enumerate(self.class_names_each_head):
             cur_head_dict = copy.deepcopy(self.separate_head_cfg.HEAD_DICT)
-            cur_head_dict['hm'] = dict(out_channels=len(cur_class_names), num_conv=self.model_cfg.NUM_HM_CONV)
+            cur_head_dict['hm'] = dict(out_channels=len(cur_class_names), num_conv=self.model_cfg.NUM_HM_CONV) # heatmap的数量根据实际的类别数量确定
             self.heads_list.append(
                 SeparateHead(
                     input_channels=self.model_cfg.SHARED_CONV_CHANNEL,
@@ -120,41 +120,41 @@ class CenterHead(nn.Module):
         inds = gt_boxes.new_zeros(num_max_objs).long()
         mask = gt_boxes.new_zeros(num_max_objs).long()
         ret_boxes_src = gt_boxes.new_zeros(num_max_objs, gt_boxes.shape[-1])
-        ret_boxes_src[:gt_boxes.shape[0]] = gt_boxes
+        ret_boxes_src[:gt_boxes.shape[0]] = gt_boxes # 前gt_boxes.shape[0]存放gt_boxes
 
         x, y, z = gt_boxes[:, 0], gt_boxes[:, 1], gt_boxes[:, 2]
-        coord_x = (x - self.point_cloud_range[0]) / self.voxel_size[0] / feature_map_stride
+        coord_x = (x - self.point_cloud_range[0]) / self.voxel_size[0] / feature_map_stride # 计算x经过体素化、降采样后的feature map位置
         coord_y = (y - self.point_cloud_range[1]) / self.voxel_size[1] / feature_map_stride
         coord_x = torch.clamp(coord_x, min=0, max=feature_map_size[0] - 0.5)  # bugfixed: 1e-6 does not work for center.int()
         coord_y = torch.clamp(coord_y, min=0, max=feature_map_size[1] - 0.5)  #
         center = torch.cat((coord_x[:, None], coord_y[:, None]), dim=-1)
-        center_int = center.int()
+        center_int = center.int() # 得到featuremap position整数部分
         center_int_float = center_int.float()
 
         dx, dy, dz = gt_boxes[:, 3], gt_boxes[:, 4], gt_boxes[:, 5]
-        dx = dx / self.voxel_size[0] / feature_map_stride
+        dx = dx / self.voxel_size[0] / feature_map_stride # 经过体素化和降采样之后dx
         dy = dy / self.voxel_size[1] / feature_map_stride
 
-        radius = centernet_utils.gaussian_radius(dx, dy, min_overlap=gaussian_overlap)
+        radius = centernet_utils.gaussian_radius(dx, dy, min_overlap=gaussian_overlap) # 根据gt的尺寸和预设的overlap确定radius
         radius = torch.clamp_min(radius.int(), min=min_radius)
 
         for k in range(min(num_max_objs, gt_boxes.shape[0])):
             if dx[k] <= 0 or dy[k] <= 0:
-                continue
+                continue # dx dy均小于0表示该gt为无效
 
             if not (0 <= center_int[k][0] <= feature_map_size[0] and 0 <= center_int[k][1] <= feature_map_size[1]):
-                continue
+                continue # 若center_int超出feature_map_size的范围
 
             cur_class_id = (gt_boxes[k, -1] - 1).long()
-            centernet_utils.draw_gaussian_to_heatmap(heatmap[cur_class_id], center[k], radius[k].item())
+            centernet_utils.draw_gaussian_to_heatmap(heatmap[cur_class_id], center[k], radius[k].item()) # 分别对不同类别的heatmap进行操作
 
-            inds[k] = center_int[k, 1] * feature_map_size[0] + center_int[k, 0]
-            mask[k] = 1
+            inds[k] = center_int[k, 1] * feature_map_size[0] + center_int[k, 0] # y_index * rows + x_index 得到flatten的索引
+            mask[k] = 1 # 标记此处有目标
 
-            ret_boxes[k, 0:2] = center[k] - center_int_float[k].float()
-            ret_boxes[k, 2] = z[k]
-            ret_boxes[k, 3:6] = gt_boxes[k, 3:6].log()
-            ret_boxes[k, 6] = torch.cos(gt_boxes[k, 6])
+            ret_boxes[k, 0:2] = center[k] - center_int_float[k].float() # 计算center的残差部分
+            ret_boxes[k, 2] = z[k] # 需要回归的目标中心点高度
+            ret_boxes[k, 3:6] = gt_boxes[k, 3:6].log() # 取底为e的log，输出值有大于1
+            ret_boxes[k, 6] = torch.cos(gt_boxes[k, 6]) # yaw采用cos sin编码
             ret_boxes[k, 7] = torch.sin(gt_boxes[k, 6])
             if gt_boxes.shape[1] > 8:
                 ret_boxes[k, 8:] = gt_boxes[k, 7:-1]
@@ -198,13 +198,13 @@ class CenterHead(nn.Module):
                     if name not in cur_class_names:
                         continue
                     temp_box = cur_gt_boxes[idx]
-                    temp_box[-1] = cur_class_names.index(name) + 1
+                    temp_box[-1] = cur_class_names.index(name) + 1 # class index from 1
                     gt_boxes_single_head.append(temp_box[None, :])
 
                 if len(gt_boxes_single_head) == 0:
                     gt_boxes_single_head = cur_gt_boxes[:0, :]
                 else:
-                    gt_boxes_single_head = torch.cat(gt_boxes_single_head, dim=0)
+                    gt_boxes_single_head = torch.cat(gt_boxes_single_head, dim=0) # 最后1维标记class
 
                 heatmap, ret_boxes, inds, mask, ret_boxes_src = self.assign_target_of_single_head(
                     num_classes=len(cur_class_names), gt_boxes=gt_boxes_single_head.cpu(),
@@ -214,10 +214,10 @@ class CenterHead(nn.Module):
                     min_radius=target_assigner_cfg.MIN_RADIUS,
                 )
                 heatmap_list.append(heatmap.to(gt_boxes_single_head.device))
-                target_boxes_list.append(ret_boxes.to(gt_boxes_single_head.device))
-                inds_list.append(inds.to(gt_boxes_single_head.device))
+                target_boxes_list.append(ret_boxes.to(gt_boxes_single_head.device)) # 编码后的gt
+                inds_list.append(inds.to(gt_boxes_single_head.device)) # flatten后的center在feature map上的索引
                 masks_list.append(mask.to(gt_boxes_single_head.device))
-                target_boxes_src_list.append(ret_boxes_src.to(gt_boxes_single_head.device))
+                target_boxes_src_list.append(ret_boxes_src.to(gt_boxes_single_head.device)) # 原始gt
 
             ret_dict['heatmaps'].append(torch.stack(heatmap_list, dim=0))
             ret_dict['target_boxes'].append(torch.stack(target_boxes_list, dim=0))
@@ -243,12 +243,12 @@ class CenterHead(nn.Module):
             hm_loss *= self.model_cfg.LOSS_CONFIG.LOSS_WEIGHTS['cls_weight']
 
             target_boxes = target_dicts['target_boxes'][idx]
-            pred_boxes = torch.cat([pred_dict[head_name] for head_name in self.separate_head_cfg.HEAD_ORDER], dim=1)
+            pred_boxes = torch.cat([pred_dict[head_name] for head_name in self.separate_head_cfg.HEAD_ORDER], dim=1) # center centerz dim rot
 
             reg_loss = self.reg_loss_func(
                 pred_boxes, target_dicts['masks'][idx], target_dicts['inds'][idx], target_boxes
-            )
-            loc_loss = (reg_loss * reg_loss.new_tensor(self.model_cfg.LOSS_CONFIG.LOSS_WEIGHTS['code_weights'])).sum()
+            ) # obtain echa dim loss of reg box
+            loc_loss = (reg_loss * reg_loss.new_tensor(self.model_cfg.LOSS_CONFIG.LOSS_WEIGHTS['code_weights'])).sum() # weigthed each dim and sum
             loc_loss = loc_loss * self.model_cfg.LOSS_CONFIG.LOSS_WEIGHTS['loc_weight']
 
             loss += hm_loss + loc_loss
@@ -303,11 +303,11 @@ class CenterHead(nn.Module):
             'pred_scores': [],
             'pred_labels': [],
         } for k in range(batch_size)]
-        for idx, pred_dict in enumerate(pred_dicts):
+        for idx, pred_dict in enumerate(pred_dicts): # 处理每个head
             batch_hm = pred_dict['hm'].sigmoid()
             batch_center = pred_dict['center']
             batch_center_z = pred_dict['center_z']
-            batch_dim = pred_dict['dim'].exp()
+            batch_dim = pred_dict['dim'].exp() # decoder 保证输出非负
             batch_rot_cos = pred_dict['rot'][:, 0].unsqueeze(dim=1)
             batch_rot_sin = pred_dict['rot'][:, 1].unsqueeze(dim=1)
             batch_vel = pred_dict['vel'] if 'vel' in self.separate_head_cfg.HEAD_ORDER else None
@@ -323,7 +323,7 @@ class CenterHead(nn.Module):
                 circle_nms=(post_process_cfg.NMS_CONFIG.NMS_TYPE == 'circle_nms'),
                 score_thresh=post_process_cfg.SCORE_THRESH,
                 post_center_limit_range=post_center_limit_range
-            )
+            ) # 从heatmap中解码bbox
 
             for k, final_dict in enumerate(final_pred_dicts):
                 final_dict['pred_labels'] = self.class_id_mapping_each_head[idx][final_dict['pred_labels'].long()]
@@ -358,7 +358,7 @@ class CenterHead(nn.Module):
                 ret_dict[k]['pred_labels'].append(final_dict['pred_labels'])
 
         for k in range(batch_size):
-            ret_dict[k]['pred_boxes'] = torch.cat(ret_dict[k]['pred_boxes'], dim=0)
+            ret_dict[k]['pred_boxes'] = torch.cat(ret_dict[k]['pred_boxes'], dim=0) # 将每帧不同head预测的结果cat
             ret_dict[k]['pred_scores'] = torch.cat(ret_dict[k]['pred_scores'], dim=0)
             ret_dict[k]['pred_labels'] = torch.cat(ret_dict[k]['pred_labels'], dim=0) + 1
 
@@ -394,7 +394,7 @@ class CenterHead(nn.Module):
             target_dict = self.assign_targets(
                 data_dict['gt_boxes'], feature_map_size=spatial_features_2d.size()[2:],
                 feature_map_stride=data_dict.get('spatial_features_2d_strides', None)
-            )
+            ) # 分配真值，gt编码
             self.forward_ret_dict['target_dicts'] = target_dict
 
         self.forward_ret_dict['pred_dicts'] = pred_dicts

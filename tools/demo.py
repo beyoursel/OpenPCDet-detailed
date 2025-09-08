@@ -62,11 +62,11 @@ class DemoDataset(DatasetTemplate):
 
 def parse_config():
     parser = argparse.ArgumentParser(description='arg parser')
-    parser.add_argument('--cfg_file', type=str, default='cfgs/kitti_models/second.yaml',
+    parser.add_argument('--cfg_file', type=str, default='/media/taole/mydisk/DL_PROJECT/OpenPCDet-detailed/output/kitti_models/centerpoint_trained/default/centerpoint.yaml',
                         help='specify the config for demo')
-    parser.add_argument('--data_path', type=str, default='demo_data',
+    parser.add_argument('--data_path', type=str, default='/media/taole/mydisk/DL_PROJECT/OpenPCDet-detailed/data/kitti/testing/velodyne',
                         help='specify the point cloud data file or directory')
-    parser.add_argument('--ckpt', type=str, default=None, help='specify the pretrained model')
+    parser.add_argument('--ckpt', type=str, default="/media/taole/mydisk/DL_PROJECT/OpenPCDet-detailed/output/kitti_models/centerpoint_trained/default/ckpt/checkpoint_epoch_10.pth", help='specify the pretrained model')
     parser.add_argument('--ext', type=str, default='.bin', help='specify the extension of your point cloud data file')
 
     args = parser.parse_args()
