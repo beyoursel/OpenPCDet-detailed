@@ -28,7 +28,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": "--cfg_file /media/taole/mydisk/DL_PROJECT/OpenPCDet-detailed/tools/cfgs/kitti_models/centerpoint.yaml --ckpt /media/taole/mydisk/DL_PROJECT/OpenPCDet-detailed/output/kitti_models/centerpoint_trained/default/ckpt/checkpoint_epoch_10.pth",
+            "args": "--cfg_file /media/taole/mydisk/DL_PROJECT/OpenPCDet-detailed/output/kitti_models/pointpillar_trained/default/pointpillar.yaml --ckpt /media/taole/mydisk/DL_PROJECT/OpenPCDet-detailed/output/kitti_models/pointpillar_trained/default/ckpt/latest_model.pth",
             "cwd": "/media/taole/mydisk/DL_PROJECT/OpenPCDet-detailed/tools",
             "justMyCode": false
         }

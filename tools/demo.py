@@ -93,7 +93,7 @@ def main():
     with torch.no_grad():
         for idx, data_dict in enumerate(demo_dataset):
             logger.info(f'Visualized sample index: \t{idx + 1}')
-            data_dict = demo_dataset.collate_batch([data_dict])
+            data_dict = demo_dataset.collate_batch([data_dict]) # 不需要dataloader，仅需要collate_batch
             load_data_to_gpu(data_dict)
             pred_dicts, _ = model.forward(data_dict)
 

@@ -92,7 +92,7 @@ class PillarVFE(VFETemplate):
         return paddings_indicator
 
     def forward(self, batch_dict, **kwargs):
-  
+        # note: coords is in ZYX order
         voxel_features, voxel_num_points, coords = batch_dict['voxels'], batch_dict['voxel_num_points'], batch_dict['voxel_coords']
         points_mean = voxel_features[:, :, :3].sum(dim=1, keepdim=True) / voxel_num_points.type_as(voxel_features).view(-1, 1, 1) # 计算每个voxel内的均值坐标
         f_cluster = voxel_features[:, :, :3] - points_mean # 计算voxel内每个点相对于points_mean的坐标
